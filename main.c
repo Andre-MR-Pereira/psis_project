@@ -1,4 +1,5 @@
 #include "hash.h"
+#include "KVS-lib.h"
 #include <stdio.h>
 
 #define HASHSIZE 3
@@ -77,6 +78,8 @@ int main()
     {
         printf("%s|%s\n", aux->key, aux->value);
     }
+
+    establish_connection("grupoMUITOFIXEdeMC", "pass1234Alex");
 
     return 0;
 }
