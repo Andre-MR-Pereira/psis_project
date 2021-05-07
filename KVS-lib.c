@@ -13,9 +13,11 @@
 
 char client_addr[25];
 
+int send_socket;
+
 int establish_connection(char *group_id, char *secret)
 {
-    int send_socket, flag;
+    int flag;
     struct sockaddr_un server_socket_addr, socket_addr_client;
 
     pid_t pid = getpid();
@@ -47,12 +49,13 @@ int establish_connection(char *group_id, char *secret)
         perror("connect");
         exit(-1);
     }
-
+    char command[5] = "EST_";
     int size_group = strlen(group_id);
     int size_secret = strlen(secret);
+    write(send_socket, &command, sizeof(command));
     write(send_socket, &size_group, sizeof(size_group));
-    write(send_socket, &size_secret, sizeof(size_secret));
     write(send_socket, group_id, strlen(group_id));
+    write(send_socket, &size_secret, sizeof(size_secret));
     write(send_socket, secret, strlen(secret));
 
     int err_rcv = recv(send_socket, &flag, sizeof(int), 0);
@@ -62,6 +65,7 @@ int establish_connection(char *group_id, char *secret)
         exit(-1);
     }
 
+    //switch case para os erros
     if (flag == 1)
     {
         printf("ok\n");
@@ -69,6 +73,7 @@ int establish_connection(char *group_id, char *secret)
     }
     else
     {
+        remove(client_addr);
         printf("Connection refused. Pair group/secret is wrong\n");
         return -1;
     }

@@ -80,6 +80,7 @@ int main()
     }
 
     establish_connection("grupoMUITOFIXEdeMC", "pass1234Alex");
+    establish_connection("grupoMUITOFIXEdeMC", "pass1234Alex");
 
     return 0;
 }

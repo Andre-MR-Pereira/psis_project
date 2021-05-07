@@ -33,14 +33,51 @@ int accepted_connections = 0;
 //fazer uma hash de clientes?
 //client_list *head_connections[10];
 
+int extract_command(char *command)
+{
+    char *token = strtok(command, "_");
+    if (strcmp("EST", token) == 0)
+    {
+        return 0;
+    }
+    else if (strcmp("PUT", token) == 0)
+    {
+        return 1;
+    }
+    else if (strcmp("GET", token) == 0)
+    {
+        return 2;
+    }
+    else if (strcmp("DEL", token) == 0)
+    {
+        return 3;
+    }
+    else if (strcmp("RCL", token) == 0)
+    {
+        return 4;
+    }
+    else if (strcmp("CLS", token) == 0)
+    {
+        return 5;
+    }
+    return -1;
+}
+
+int extract_pid(struct sockaddr_un sender_sock_addr)
+{
+    int pid;
+    char *token = strtok(sender_sock_addr.sun_path, "_");
+    token = strtok(NULL, "_");
+    token = strtok(NULL, "_");
+    pid = atoi(token);
+    return pid;
+}
+
 void *client_interaction(void *args)
 {
     client_list *aux;
-    char group_id[100], secret[100];
     int *client_buffer = (int *)args;
     int client_fd = *client_buffer;
-    int toset = 1;
-    int size_group, size_secret, buffer_size;
     int pos_connects;
 
     /*for (int i = 0; i < accepted_connections; i++)
@@ -53,37 +90,42 @@ void *client_interaction(void *args)
     }*/
     //race condition
 
-    while (1)
+    int size_message;
+    char command[5], *message;
+
+    int err_rcv = recv(client_fd, &command, sizeof(command), 0);
+    if (err_rcv == -1)
     {
-        int err_rcv = recv(client_fd, &size_group, sizeof(size_group), 0);
-        if (err_rcv == -1)
+        perror("recieve");
+        exit(-1);
+    }
+
+    switch (extract_command(command))
+    {
+    case 0:
+        for (int i = 0; i < 2; i++)
         {
-            perror("recieve");
-            exit(-1);
-        }
-        err_rcv = recv(client_fd, &size_secret, sizeof(size_secret), 0);
-        if (err_rcv == -1)
-        {
-            perror("recieve");
-            exit(-1);
-        }
-        err_rcv = recv(client_fd, &group_id, size_group, 0);
-        if (err_rcv == -1)
-        {
-            perror("recieve");
-            exit(-1);
-        }
-        err_rcv = recv(client_fd, &secret, size_secret, 0);
-        if (err_rcv == -1)
-        {
-            perror("recieve");
-            exit(-1);
+            err_rcv = recv(client_fd, &size_message, sizeof(size_message), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            message = (char *)malloc((size_message + 1) * sizeof(char));
+            err_rcv = recv(client_fd, message, size_message, 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            printf("Recebi %s\n", message);
+            //mandar datagram para o auth server
+            free(message);
         }
 
-        if (1 == 1 /*verificar com o auth server*/)
+        if (1 == 1) //verificar com o auth server
         {
             int connection_flag = 1;
-            printf("%s e %s fornecidos\n", group_id, secret);
             write(client_fd, &connection_flag, sizeof(connection_flag));
         }
         else
@@ -93,17 +135,29 @@ void *client_interaction(void *args)
             write(client_fd, &error_flag, sizeof(error_flag));
             pthread_exit(NULL);
         }
+        break;
+    case 1:
+        printf("PUT\n");
+        break;
+    case 2:
+        printf("GET\n");
+        break;
+    case 3:
+        printf("DEL\n");
+        break;
+    case 4:
+        printf("RCL\n");
+        break;
+    case 5:
+        printf("CLS\n");
+        break;
+    default:
+        printf("Command not found. Connection with client %d dropped\n", 1);
+        int error_flag = -100;
+        //guardar tempo de saida
+        write(client_fd, &error_flag, sizeof(error_flag));
+        pthread_exit(NULL);
     }
-}
-
-int extract_pid(struct sockaddr_un sender_sock_addr)
-{
-    int pid;
-    char *token = strtok(sender_sock_addr.sun_path, "_");
-    token = strtok(NULL, "_");
-    token = strtok(NULL, "_");
-    pid = atoi(token);
-    return pid;
 }
 
 int main()
@@ -135,7 +189,6 @@ int main()
         exit(-1);
     }
 
-
     //pôr em threads depois
     int i = 0;
     int client_size = sizeof(client_socket_addr);
@@ -155,11 +208,14 @@ int main()
         struct tm *tm;
 
         time(&start);
-        tm = localtime( &start );
-        if(strftime(buf, sizeof(buf), "%T %D", tm) == 0){
+        tm = localtime(&start);
+        if (strftime(buf, sizeof(buf), "%T %D", tm) == 0)
+        {
             printf("error converting start time\n");
-        }else{
-            printf("start time: %s %d\n",buf, strlen(buf));
+        }
+        else
+        {
+            printf("start time: %s %ld\n", buf, strlen(buf));
         }
 
         //guardar pid da pessoa (funcao ja esta criada)
