@@ -6,9 +6,11 @@
 #include <string.h>
 #include <sys/un.h>
 #include <pthread.h>
+#include <time.h>
 #include "hash.h"
 
 #define SERVER_SOCKET_ADDR "/tmp/server_socket"
+#define MAX_LISTEN 2
 
 typedef struct client_list
 {
@@ -19,7 +21,7 @@ typedef struct client_list
     struct client_list *next;
 } client_list;
 
-typedef struct client_list
+typedef struct hash_list
 {
     char *group;
     hashtable **group_table;
@@ -127,13 +129,17 @@ int main()
         exit(-1);
     }
 
-    if (listen(server_socket, 2) == -1)
+    if (listen(server_socket, MAX_LISTEN) == -1)
     {
         perror("listen");
         exit(-1);
     }
+
+
+    //pôr em threads depois
     int i = 0;
     int client_size = sizeof(client_socket_addr);
+    char buf[20];
     while (1)
     {
         int client_fd = accept(server_socket, (struct sockaddr *)&client_socket_addr, &client_size);
@@ -145,6 +151,17 @@ int main()
         client_fd_vector[i] = client_fd;
         accepted_connections++;
         //guardar tempo conexão
+        time_t start;
+        struct tm *tm;
+
+        time(&start);
+        tm = localtime( &start );
+        if(strftime(buf, sizeof(buf), "%T %D", tm) == 0){
+            printf("error converting start time\n");
+        }else{
+            printf("start time: %s %d\n",buf, strlen(buf));
+        }
+
         //guardar pid da pessoa (funcao ja esta criada)
         if (pthread_create(&t_id[i], NULL, client_interaction, (void *)&client_fd) != 0)
         {
