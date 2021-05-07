@@ -81,6 +81,43 @@ int establish_connection(char *group_id, char *secret)
 
 int put_value(char *key, char *value)
 {
+    int flag;
+    if (1 == 1) //verificar que a socket esta ligada ao server
+    {
+        char command[5] = "PUT_";
+        int size_key = strlen(key);
+        int size_value = strlen(value);
+        write(send_socket, &command, sizeof(command));
+        write(send_socket, &size_key, sizeof(size_key));
+        write(send_socket, key, strlen(key));
+        write(send_socket, &size_value, sizeof(size_value));
+        write(send_socket, value, strlen(value));
+
+        int err_rcv = recv(send_socket, &flag, sizeof(int), 0);
+        if (err_rcv == -1)
+        {
+            perror("recieve");
+            exit(-1);
+        }
+
+        //switch case para os erros
+        if (flag == 1)
+        {
+            printf("ok\n");
+            return 0;
+        }
+        else
+        {
+            remove(client_addr);
+            printf("Connection refused. Pair group/secret is wrong\n");
+            return -1;
+        }
+    }
+    else
+    {
+        printf("You are not connected to any group.\n");
+        return -100;
+    }
 }
 
 int get_value(char *key, char **value)

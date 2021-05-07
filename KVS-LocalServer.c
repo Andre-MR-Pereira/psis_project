@@ -9,6 +9,7 @@
 #include <time.h>
 #include "hash.h"
 
+#define HASHSIZE 101
 #define SERVER_SOCKET_ADDR "/tmp/server_socket"
 #define MAX_LISTEN 2
 
@@ -25,13 +26,14 @@ typedef struct hash_list
 {
     char *group;
     hashtable **group_table;
-    struct client_list *next;
+    struct hash_list *next;
 } hash_list;
 
 int client_fd_vector[10];
 int accepted_connections = 0;
 //fazer uma hash de clientes?
 //client_list *head_connections[10];
+hash_list *groups = NULL;
 
 int extract_command(char *command)
 {
@@ -73,12 +75,44 @@ int extract_pid(struct sockaddr_un sender_sock_addr)
     return pid;
 }
 
+hash_list *lookup_group(char *group)
+{
+    hash_list *aux;
+    for (aux = groups; aux != NULL; aux = aux->next)
+    {
+        if (strcmp(group, aux->group) == 0)
+            return aux; /* found */
+    }
+    return NULL; /* not found */
+}
+
+void create_new_group(char *group)
+{
+    hash_list *aux;
+
+    aux = (hash_list *)malloc(sizeof(hash_list));
+    aux->group = strdup(group);
+    aux->group_table = allocate_table(HASHSIZE);
+    if (groups == NULL)
+    {
+        aux->next = NULL;
+    }
+    else
+    {
+        aux->next = groups;
+        groups = aux;
+    }
+}
+
 void *client_interaction(void *args)
 {
     client_list *aux;
+    hash_list *group;
     int *client_buffer = (int *)args;
     int client_fd = *client_buffer;
     int pos_connects;
+    int size_field1, size_field2;
+    char command[5], *field1, *field2;
 
     /*for (int i = 0; i < accepted_connections; i++)
     {
@@ -90,73 +124,275 @@ void *client_interaction(void *args)
     }*/
     //race condition
 
-    int size_message;
-    char command[5], *message;
-
-    int err_rcv = recv(client_fd, &command, sizeof(command), 0);
-    if (err_rcv == -1)
+    while (1)
     {
-        perror("recieve");
-        exit(-1);
-    }
-
-    switch (extract_command(command))
-    {
-    case 0:
-        for (int i = 0; i < 2; i++)
+        int err_rcv = recv(client_fd, &command, sizeof(command), 0);
+        if (err_rcv == -1)
         {
-            err_rcv = recv(client_fd, &size_message, sizeof(size_message), 0);
+            perror("recieve");
+            exit(-1);
+        }
+
+        switch (extract_command(command))
+        {
+        case 0:
+            err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
             if (err_rcv == -1)
             {
                 perror("recieve");
                 exit(-1);
             }
-            message = (char *)malloc((size_message + 1) * sizeof(char));
-            err_rcv = recv(client_fd, message, size_message, 0);
+            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
+            err_rcv = recv(client_fd, field1, size_field1, 0);
             if (err_rcv == -1)
             {
                 perror("recieve");
                 exit(-1);
             }
-            printf("Recebi %s\n", message);
-            //mandar datagram para o auth server
-            free(message);
-        }
+            err_rcv = recv(client_fd, &size_field2, sizeof(size_field2), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
+            err_rcv = recv(client_fd, field2, size_field2, 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            printf("Recebi %s e %s\n", field1, field2);
+            /*
+        mandar datagram para o auth server
+        */
 
-        if (1 == 1) //verificar com o auth server
-        {
-            int connection_flag = 1;
-            write(client_fd, &connection_flag, sizeof(connection_flag));
-        }
-        else
-        {
-            int error_flag = -1;
+            if (1 == 1) //verificar com o auth server
+            {
+                if (lookup_group(field1) == NULL)
+                {
+                    create_new_group(field1);
+                }
+                group = lookup_group(field1);
+                int connection_flag = 1;
+                write(client_fd, &connection_flag, sizeof(connection_flag));
+                free(field1);
+                free(field2);
+            }
+            else
+            {
+                int error_flag = -1;
+                //guardar tempo de saida
+                write(client_fd, &error_flag, sizeof(error_flag));
+                free(field1);
+                free(field2);
+                pthread_exit(NULL);
+            }
+            break;
+        case 1:
+            err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
+            err_rcv = recv(client_fd, field1, size_field1, 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            err_rcv = recv(client_fd, &size_field2, sizeof(size_field2), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
+            err_rcv = recv(client_fd, field2, size_field2, 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            printf("Recebi %s e %s\n", field1, field2);
+            printf("1 %d\n", group != NULL); //ta a dizer que e falso??????
+            if (group != NULL && insert(group->group_table, field1, field2, HASHSIZE) != NULL)
+            {
+                int connection_flag = 1;
+                write(client_fd, &connection_flag, sizeof(connection_flag));
+                free(field1);
+                free(field2);
+            }
+            else //cuidado com else else que o insert pode ser NULL
+            {
+                printf("You haven´t established a connection to a group yet.\n");
+                int error_flag = -1;
+                //guardar tempo de saida
+                write(client_fd, &error_flag, sizeof(error_flag));
+                free(field1);
+                free(field2);
+                pthread_exit(NULL);
+            }
+
+            free(field1);
+            free(field2);
+
+            break;
+        case 2:
+            err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
+            err_rcv = recv(client_fd, field1, size_field1, 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            err_rcv = recv(client_fd, &size_field2, sizeof(size_field2), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
+            err_rcv = recv(client_fd, field2, size_field2, 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            printf("Recebi %s e %s\n", field1, field2);
+            /*
+        Obter o value associado à key
+        */
+            free(field1);
+            free(field2);
+
+            if (1 == 1) //verificar com o auth server
+            {
+                int connection_flag = 1;
+                write(client_fd, &connection_flag, sizeof(connection_flag));
+            }
+            else
+            {
+                int error_flag = -1;
+                //guardar tempo de saida
+                write(client_fd, &error_flag, sizeof(error_flag));
+                pthread_exit(NULL);
+            }
+            break;
+        case 3:
+            err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
+            err_rcv = recv(client_fd, field1, size_field1, 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            err_rcv = recv(client_fd, &size_field2, sizeof(size_field2), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
+            err_rcv = recv(client_fd, field2, size_field2, 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            printf("Recebi %s e %s\n", field1, field2);
+            /*
+        Apagar a entry da hash
+        */
+            free(field1);
+            free(field2);
+
+            if (1 == 1) //verificar com o auth server
+            {
+                int connection_flag = 1;
+                write(client_fd, &connection_flag, sizeof(connection_flag));
+            }
+            else
+            {
+                int error_flag = -1;
+                //guardar tempo de saida
+                write(client_fd, &error_flag, sizeof(error_flag));
+                pthread_exit(NULL);
+            }
+            break;
+        case 4:
+            err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
+            err_rcv = recv(client_fd, field1, size_field1, 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            err_rcv = recv(client_fd, &size_field2, sizeof(size_field2), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
+            err_rcv = recv(client_fd, field2, size_field2, 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            printf("Recebi %s e %s\n", field1, field2);
+            /*
+        mandar datagram para o auth server
+        */
+            free(field1);
+            free(field2);
+
+            if (1 == 1) //verificar com o auth server
+            {
+                int connection_flag = 1;
+                write(client_fd, &connection_flag, sizeof(connection_flag));
+            }
+            else
+            {
+                int error_flag = -1;
+                //guardar tempo de saida
+                write(client_fd, &error_flag, sizeof(error_flag));
+                pthread_exit(NULL);
+            }
+            break;
+        case 5:
+            printf("Closing connection with client %s", "Agora ainda nao o tenho");
+            //guardar tempo de saida
+            pthread_exit(NULL);
+            break;
+        default:
+            printf("Command not found. Connection with client %d dropped\n", 1);
+            int error_flag = -100;
             //guardar tempo de saida
             write(client_fd, &error_flag, sizeof(error_flag));
             pthread_exit(NULL);
         }
-        break;
-    case 1:
-        printf("PUT\n");
-        break;
-    case 2:
-        printf("GET\n");
-        break;
-    case 3:
-        printf("DEL\n");
-        break;
-    case 4:
-        printf("RCL\n");
-        break;
-    case 5:
-        printf("CLS\n");
-        break;
-    default:
-        printf("Command not found. Connection with client %d dropped\n", 1);
-        int error_flag = -100;
-        //guardar tempo de saida
-        write(client_fd, &error_flag, sizeof(error_flag));
-        pthread_exit(NULL);
     }
 }
 

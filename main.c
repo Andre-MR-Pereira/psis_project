@@ -80,7 +80,8 @@ int main()
     }
 
     establish_connection("grupoMUITOFIXEdeMC", "pass1234Alex");
-    establish_connection("grupoMUITOFIXEdeMC", "pass1234Alex");
+    //establish_connection("grupoMUITOFIXEdeMC", "pass1234Alex");
+    put_value("Twisted", "3");
 
     return 0;
 }
