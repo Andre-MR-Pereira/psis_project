@@ -80,8 +80,13 @@ int main()
     }
 
     establish_connection("grupoMUITOFIXEdeMC", "pass1234Alex");
-    //establish_connection("grupoMUITOFIXEdeMC", "pass1234Alex");
-    put_value("Twisted", "3");
+    //establish_connection("grupoPSIS", "SOCKETTT");
+    put_value("Twisted", "32345");
+    put_value("Mabeco", "5");
+    char *buffer;
+    get_value("Twisted", &buffer); //bug de string com tamanho 5
+    printf("Voltou %s\n", buffer);
+    delete_value("Mabeco");
 
     return 0;
 }

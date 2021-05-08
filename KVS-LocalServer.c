@@ -86,6 +86,16 @@ hash_list *lookup_group(char *group)
     return NULL; /* not found */
 }
 
+void show_groups()
+{
+    hash_list *aux;
+    for (aux = groups; aux != NULL; aux = aux->next)
+    {
+        printf("%s|", aux->group);
+    }
+    printf("\n");
+}
+
 void create_new_group(char *group)
 {
     hash_list *aux;
@@ -100,14 +110,15 @@ void create_new_group(char *group)
     else
     {
         aux->next = groups;
-        groups = aux;
     }
+    groups = aux;
 }
 
 void *client_interaction(void *args)
 {
     client_list *aux;
     hash_list *group;
+    hashtable *buffer;
     int *client_buffer = (int *)args;
     int client_fd = *client_buffer;
     int pos_connects;
@@ -132,6 +143,7 @@ void *client_interaction(void *args)
             perror("recieve");
             exit(-1);
         }
+        printf("                       RECEBI COMMAND|  %s\n", command);
 
         switch (extract_command(command))
         {
@@ -162,7 +174,7 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            printf("Recebi %s e %s\n", field1, field2);
+            printf("EST:Recebi %s e %s\n", field1, field2);
             /*
         mandar datagram para o auth server
         */
@@ -174,6 +186,7 @@ void *client_interaction(void *args)
                     create_new_group(field1);
                 }
                 group = lookup_group(field1);
+                show_groups();
                 int connection_flag = 1;
                 write(client_fd, &connection_flag, sizeof(connection_flag));
                 free(field1);
@@ -216,10 +229,10 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            printf("Recebi %s e %s\n", field1, field2);
-            printf("1 %d\n", group != NULL); //ta a dizer que e falso??????
+            printf("PUT:Recebi %s e %s\n", field1, field2);
             if (group != NULL && insert(group->group_table, field1, field2, HASHSIZE) != NULL)
             {
+                printf("Entra no if\n");
                 int connection_flag = 1;
                 write(client_fd, &connection_flag, sizeof(connection_flag));
                 free(field1);
@@ -235,10 +248,6 @@ void *client_interaction(void *args)
                 free(field2);
                 pthread_exit(NULL);
             }
-
-            free(field1);
-            free(field2);
-
             break;
         case 2:
             err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
@@ -254,30 +263,22 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            err_rcv = recv(client_fd, &size_field2, sizeof(size_field2), 0);
-            if (err_rcv == -1)
-            {
-                perror("recieve");
-                exit(-1);
-            }
-            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
-            err_rcv = recv(client_fd, field2, size_field2, 0);
-            if (err_rcv == -1)
-            {
-                perror("recieve");
-                exit(-1);
-            }
-            printf("Recebi %s e %s\n", field1, field2);
-            /*
-        Obter o value associado à key
-        */
+
+            printf("GET:Recebi %s\n", field1);
+
+            buffer = lookup(group->group_table, field1, HASHSIZE);
+            printf("The value is %s\n", buffer->value);
+
             free(field1);
-            free(field2);
 
             if (1 == 1) //verificar com o auth server
             {
                 int connection_flag = 1;
                 write(client_fd, &connection_flag, sizeof(connection_flag));
+                int size_buffer = strlen(buffer->value);
+                printf("Size %d e '%s'\n", size_buffer, buffer->value);
+                write(client_fd, &size_buffer, sizeof(size_buffer));
+                write(client_fd, buffer->value, strlen(buffer->value));
             }
             else
             {
@@ -301,25 +302,15 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            err_rcv = recv(client_fd, &size_field2, sizeof(size_field2), 0);
-            if (err_rcv == -1)
+
+            printf("DEL:Recebi %s\n", field1);
+
+            if (delete_hash(group->group_table, field1, HASHSIZE) == -1)
             {
-                perror("recieve");
-                exit(-1);
+                printf("Hash deletion failed\n");
             }
-            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
-            err_rcv = recv(client_fd, field2, size_field2, 0);
-            if (err_rcv == -1)
-            {
-                perror("recieve");
-                exit(-1);
-            }
-            printf("Recebi %s e %s\n", field1, field2);
-            /*
-        Apagar a entry da hash
-        */
+
             free(field1);
-            free(field2);
 
             if (1 == 1) //verificar com o auth server
             {
@@ -361,10 +352,10 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            printf("Recebi %s e %s\n", field1, field2);
+            printf("RCL:Recebi %s e %s\n", field1, field2);
             /*
-        mandar datagram para o auth server
-        */
+            Associar uma callback function à key
+            */
             free(field1);
             free(field2);
 
