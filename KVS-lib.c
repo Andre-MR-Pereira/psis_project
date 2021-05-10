@@ -123,7 +123,6 @@ int put_value(char *key, char *value)
 int get_value(char *key, char **value)
 {
     int flag, size_buffer;
-    char *buffer;
     if (1 == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "GET_";
@@ -145,7 +144,7 @@ int get_value(char *key, char **value)
             perror("recieve");
             exit(-1);
         }
-        buffer = (char *)malloc((size_buffer + 1) * sizeof(char));
+        char buffer[size_buffer + 1];
         err_rcv = recv(send_socket, buffer, size_buffer, 0);
         if (err_rcv == -1)
         {
@@ -159,7 +158,6 @@ int get_value(char *key, char **value)
             printf("ok\n");
             *value = (char *)malloc((size_buffer + 1) * sizeof(char));
             strcpy(*value, buffer);
-            free(buffer);
             return 0;
         }
         else
@@ -221,4 +219,35 @@ int register_callback(char *key, void (*callback_function)(char *))
 
 int close_connection()
 {
+    int flag;
+    if (1 == 1) //verificar que a socket esta ligada ao server
+    {
+        char command[5] = "CLS_";
+        write(send_socket, &command, sizeof(command));
+
+        int err_rcv = recv(send_socket, &flag, sizeof(int), 0);
+        if (err_rcv == -1)
+        {
+            perror("recieve");
+            exit(-1);
+        }
+
+        //switch case para os erros
+        if (flag == 1)
+        {
+            printf("ok\n");
+            return 0;
+        }
+        else
+        {
+            remove(client_addr);
+            printf("Connection refused. Pair group/secret is wrong\n");
+            return -1;
+        }
+    }
+    else
+    {
+        printf("You are not connected to any group.\n");
+        return -100;
+    }
 }

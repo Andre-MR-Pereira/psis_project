@@ -81,10 +81,10 @@ int main()
 
     establish_connection("grupoMUITOFIXEdeMC", "pass1234Alex");
     //establish_connection("grupoPSIS", "SOCKETTT");
-    put_value("Twisted", "32345");
+    put_value("Laranja", "39875983759236589243659237392856723");
     put_value("Mabeco", "5");
     char *buffer;
-    get_value("Twisted", &buffer); //bug de string com tamanho 5
+    get_value("Laranja", &buffer); //bug de string com tamanho 5
     printf("Voltou %s\n", buffer);
     delete_value("Mabeco");
 
