@@ -161,7 +161,7 @@ void *client_interaction(void *args)
 
         switch (extract_command(command))
         {
-        case 0:
+        case 0: //establish connection
             err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
             if (err_rcv == -1)
             {
@@ -191,6 +191,7 @@ void *client_interaction(void *args)
             mandar datagram para o auth server
             */
 
+           //falta o bind?  pq o auth server vai ter de lhe responder com o secret
             int other_sock_addr_size = sizeof(other_sock_addr);
             strcpy(other_sock_addr.sun_path, AUTH_SOCKET_ADDR);
             other_sock_addr.sun_family = AF_UNIX;
@@ -246,7 +247,7 @@ void *client_interaction(void *args)
                 pthread_exit(NULL);
             }
             break;
-        case 1:
+        case 1: //put_value
             err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
             if (err_rcv == -1)
             {
@@ -289,7 +290,7 @@ void *client_interaction(void *args)
                 pthread_exit(NULL);
             }
             break;
-        case 2:
+        case 2: //get_value
             err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
             if (err_rcv == -1)
             {
@@ -325,7 +326,7 @@ void *client_interaction(void *args)
                 pthread_exit(NULL);
             }
             break;
-        case 3:
+        case 3: //delete_value
             err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
             if (err_rcv == -1)
             {
@@ -359,7 +360,7 @@ void *client_interaction(void *args)
                 pthread_exit(NULL);
             }
             break;
-        case 4:
+        case 4: //register_callback
             /*err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
             if (err_rcv == -1)
             {
@@ -406,7 +407,7 @@ void *client_interaction(void *args)
                 pthread_exit(NULL);
             }*/
             break;
-        case 5:
+        case 5: //close_connection
             hooked = 0;
             printf("Closing connection with client %s", "Agora ainda nao o tenho");
             connection_flag = 1;
@@ -428,6 +429,14 @@ int UserInput()
 {
 
     char option[10] = "\0", input[100] = "\0", group_name[20] = "\n", secret[20] = "\n";
+    char field1[512], field2[512], auth_command[5];
+    int connection_flag, n_bytes, n_pairs_kv; //n_pairs_kv = number of key-value pairs
+    struct sockaddr_un other_sock_addr;
+
+    //falta o bind?  pq o auth server vai ter de lhe responder com o secret
+    int other_sock_addr_size = sizeof(other_sock_addr);
+    strcpy(other_sock_addr.sun_path, AUTH_SOCKET_ADDR);
+    other_sock_addr.sun_family = AF_UNIX; //alterar depois para AF_INET
 
     printf("Enter command (note: group names must be 100 or less characters)\n");
     if (fgets(input, 100, stdin) == NULL)
@@ -445,11 +454,29 @@ int UserInput()
         {
             //enviar msg ao AuthServer a ver se o grupo já existe (pq não podem haver grupos iguais em computadores diferentes)
             //(basta verificar no AuthServer)
+            
+            strcpy(auth_command, "CRE_");
+            //enviar apenas num sendto tudo?
+            sendto(send_socket, &auth_command, sizeof(auth_command), 0,
+                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+            sendto(send_socket, group_name, strlen(field1), 0,
+                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
-            //se o grupo ainda não existir no AuthServer, então:
-            create_new_group(group_name);
+            n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
+                               NULL, NULL);
+            printf("A connection flag foi %d\n", connection_flag);
 
-            //ev
+            //rever isto, se for para enviar tudo num só buffer
+            //temos que fazer strok e analisar 1º a flag
+            //e se for 1 então foi sucesso e tira-se o secret
+            if(connection_flag == -4){
+                printf("The group already exists\n");
+            }
+            else{
+                //printf("The secret of group %s is %s\n", group_name, secret);
+                //se o grupo ainda não existir no AuthServer, então cria-se o grupo no LocalServer
+                create_new_group(group_name);
+            }
 
             return 0;
         }
@@ -470,12 +497,27 @@ int UserInput()
             if (strcmp(group_name, aux->group) == 0)
             {
                 //enviar msg ao AuthServer a avisar para apagar lá o grupo e segredo
-                //PRENCHEER
+                strcpy(auth_command, "DEL_");
+                //enviar apenas num sendto tudo?
+                sendto(send_socket, &auth_command, sizeof(auth_command), 0,
+                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                sendto(send_socket, group_name, strlen(field1), 0,
+                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
-                //deleting local info of the group:
-                free(aux->group_table);
-                free(aux);     //the same as free(groups);
-                groups = NULL; //the list of groups is empty now
+                n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
+                                NULL, NULL);
+                printf("A connection flag foi %d\n", connection_flag);
+
+                if(connection_flag==-3) //deletion failed in the AuthServer
+                {
+                    printf("Deletion in the AuthServer failed\n");
+                }
+                else{
+                    //deleting local info of the group:
+                    free(aux->group_table);
+                    free(aux);     //the same as free(groups);
+                    groups = NULL; //the list of groups is empty now
+                }
             }
             else
             {
@@ -484,13 +526,28 @@ int UserInput()
                     if (strcmp(group_name, aux->group) == 0)
                     {
                         //enviar msg ao AuthServer a avisar para apagar lá o grupo e segredo
-                        //PRENCHEER
+                        strcpy(auth_command, "DEL_");
+                        //enviar apenas num sendto tudo?
+                        sendto(send_socket, &auth_command, sizeof(auth_command), 0,
+                            (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                        sendto(send_socket, group_name, strlen(field1), 0,
+                            (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
-                        //deleting local info of the group:
-                        prev->next = aux->next;
-                        free(aux->group_table);
-                        free(aux);
-                        break;
+                        n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
+                                        NULL, NULL);
+                        printf("A connection flag foi %d\n", connection_flag);
+
+                        if(connection_flag==-3) //deletion failed in the AuthServer
+                        {
+                            printf("Deletion in the AuthServer failed\n");
+                        }
+                        else{
+                            //deleting local info of the group:
+                            prev->next = aux->next;
+                            free(aux->group_table);
+                            free(aux);
+                            break;
+                        }
                     }
                     prev = aux;
                     aux = aux->next;
@@ -506,14 +563,28 @@ int UserInput()
     }
     else if (strcmp(option, "group") == 0)
     {
+        hash_list *search_group;
 
-        /*if(sscanf(input, " %s %d", option, group_name)==2){
+        if(sscanf(input, " %s %d", option, group_name)==2){
             //verificar se o grupo existe
-            
+            search_group = lookup_group(group_name);
+            if(search_group==NULL)
+            {
+                printf("The group %s doesn't exist\n", group_name);
+            }
+            else
+            {
+                //se o grupo existe, envia msg ao AuthServer a pedir o secret
+
+                //percorrer a lista do grupo e contar o nº de elementos
+
+                //printf("The group %s has %d key-value pairs and its secret is %s\n", group_name, n_pairs_kv, secret);
+
+            }
 
             return 0;
         }
-        else return 1;*/
+        else return 1;
     }
     else if (strcmp(option, "status") == 0)
     {
@@ -536,6 +607,13 @@ void *user_interface(void *args)
             printf("Invalid command\n");
         }
     }
+}
+
+//sets the provided buffer to '\0'
+void cleanBuffer(char* buff){
+	for(int i=0; i<strlen(buff); i++){
+		buff[i]='\0';
+	}
 }
 
 int main()

@@ -23,6 +23,10 @@ int extract_command(char *command)
     {
         return 2;
     }
+    else if (strcmp("ASK", token) == 0)
+    {
+        return 3;
+    }
     return -1;
 }
 
@@ -46,7 +50,7 @@ int main()
         exit(-1);
     }
 
-    server_socket_addr.sun_family = AF_UNIX;
+    server_socket_addr.sun_family = AF_UNIX; //depois alterar para AF_INET
     strcpy(server_socket_addr.sun_path, SERVER_SOCKET_ADDR);
 
     if (bind(server_socket, (struct sockaddr *)&server_socket_addr, sizeof(server_socket_addr)) == -1)
@@ -66,20 +70,28 @@ int main()
 
         switch (extract_command(command))
         {
-        case 0:
+        case 0: //create
             flag = 1;
 
             n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
                                (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
-
+            //gerar aqui o secret
             n_bytes = recvfrom(server_socket, field2, sizeof(field2), 0,
                                (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
             printf("%s e %s do Local\n", field1, field2);
+            //group = insert(vault, field1, secret, HASHSIZE);
             group = insert(vault, field1, field2, HASHSIZE);
+
+            if(group==NULL)//the group already exists
+            {
+                flag=-4; //confirmar que este não é usado em mais lado nenhum, significa que o grupo já existe
+            }
+
+            //enviar apenas 1 buffer com a flag e o secret em caso de sucesso
             sendto(server_socket, &flag, sizeof(flag), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
-        case 1:
+        case 1: //delete
             flag = 1;
             n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
                                (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
@@ -91,7 +103,7 @@ int main()
             sendto(server_socket, &flag, sizeof(flag), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
-        case 2:
+        case 2: //compare
             n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
                                (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
 
@@ -110,6 +122,9 @@ int main()
             }
             sendto(server_socket, &flag, sizeof(flag), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
+            break;
+        case 3: //ask for the secret of a certain group
+            
             break;
         default:
             printf("Command not found.\n");

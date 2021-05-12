@@ -11,10 +11,10 @@ struct hashtable
     hashtable *next;
 };
 
-unsigned hash(char *, int);
-hashtable *lookup(hashtable **, char *, int);
-hashtable *insert(hashtable **, char *, char *, int);
+unsigned hash(char *key, int size);
+hashtable *lookup(hashtable **table, char *key, int size);
+hashtable *insert(hashtable **table, char *key, char *value, int size);
 hashtable **allocate_table();
-int delete_hash(hashtable **, char *, int);
+int delete_hash(hashtable **table, char *key, int size);
 
 #endif
