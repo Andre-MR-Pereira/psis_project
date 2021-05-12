@@ -39,7 +39,7 @@ int main()
     vault = allocate_table(HASHSIZE);
     char fieldz[100];
     remove(SERVER_SOCKET_ADDR);
-
+    //depois alterar para AF_INET
     server_socket = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (server_socket == -1)
     {
