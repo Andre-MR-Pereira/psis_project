@@ -9,7 +9,7 @@
 #include <time.h>
 #include "hash.h"
 
-#define HASHSIZE 101
+#define HASHSIZE 1001
 #define SERVER_SOCKET_ADDR "/tmp/server_socket"
 #define AUTH_SOCKET_ADDR "/tmp/auth_socket"
 #define LOCAL_SOCKET_ADDR "/tmp/local"
@@ -128,9 +128,9 @@ void *client_interaction(void *args)
     hashtable *buffer;
     int *client_buffer = (int *)args;
     int client_fd = *client_buffer;
-    int size_field1, size_field2;
+    int size_field1, size_field2, hooked = 0;
     int connection_flag, error_flag, n_bytes;
-    char command[5], *field1, *field2, auth_command[5];
+    char command[5], field1[512], field2[512], auth_command[5], *value;
     struct sockaddr_un other_sock_addr;
 
     /*for (int i = 0; i < accepted_connections; i++)
@@ -168,7 +168,6 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
             err_rcv = recv(client_fd, field1, size_field1, 0);
             if (err_rcv == -1)
             {
@@ -181,7 +180,6 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
             err_rcv = recv(client_fd, field2, size_field2, 0);
             if (err_rcv == -1)
             {
@@ -200,13 +198,9 @@ void *client_interaction(void *args)
             strcpy(auth_command, "CRE_");
             sendto(send_socket, &auth_command, sizeof(auth_command), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, &size_field1, sizeof(size_field1), 0,
+            sendto(send_socket, field1, strlen(field1), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, field1, size_field1, 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, &size_field2, sizeof(size_field2), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, field2, size_field2, 0,
+            sendto(send_socket, field2, strlen(field2), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
             n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
@@ -216,20 +210,16 @@ void *client_interaction(void *args)
             strcpy(auth_command, "CMP_");
             sendto(send_socket, &auth_command, sizeof(auth_command), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, &size_field1, sizeof(size_field1), 0,
+            sendto(send_socket, field1, strlen(field1), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, field1, size_field1, 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, &size_field2, sizeof(size_field2), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, field2, size_field2, 0,
+            sendto(send_socket, field2, strlen(field2), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
             n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
                                NULL, NULL);
             printf("A connection flag foi %d\n", connection_flag);
 
-            if (connection_flag == 1) //verificar com o auth server
+            if (1 == 1) //verificar com o auth server
             {
                 if (lookup_group(field1) == NULL)
                 {
@@ -238,17 +228,21 @@ void *client_interaction(void *args)
                 group = lookup_group(field1);
                 show_groups();
                 connection_flag = 1;
+                hooked = 1;
                 write(client_fd, &connection_flag, sizeof(connection_flag));
-                free(field1);
-                free(field2);
             }
             else
             {
-                error_flag = -1;
-                //guardar tempo de saida
+                if (hooked == 1)
+                {
+                    error_flag = -5;
+                }
+                else
+                {
+                    error_flag = -1;
+                    //guardar tempo de saida
+                }
                 write(client_fd, &error_flag, sizeof(error_flag));
-                free(field1);
-                free(field2);
                 pthread_exit(NULL);
             }
             break;
@@ -259,7 +253,6 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
             err_rcv = recv(client_fd, field1, size_field1, 0);
             if (err_rcv == -1)
             {
@@ -272,21 +265,19 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
-            err_rcv = recv(client_fd, field2, size_field2, 0);
+            value = (char *)malloc((size_field2 + 1) * sizeof(char));
+            err_rcv = recv(client_fd, value, size_field2, 0);
             if (err_rcv == -1)
             {
                 perror("recieve");
                 exit(-1);
             }
-            printf("PUT:Recebi %s e %s\n", field1, field2);
-            if (group != NULL && insert(group->group_table, field1, field2, HASHSIZE) != NULL)
+            printf("PUT:Recebi %s e %s\n", field1, value);
+            if (group != NULL && insert(group->group_table, field1, value, HASHSIZE) != NULL)
             {
-                printf("Entra no if\n");
                 connection_flag = 1;
                 write(client_fd, &connection_flag, sizeof(connection_flag));
-                free(field1);
-                free(field2);
+                free(value);
             }
             else //cuidado com else else que o insert pode ser NULL
             {
@@ -294,8 +285,7 @@ void *client_interaction(void *args)
                 error_flag = -1;
                 //guardar tempo de saida
                 write(client_fd, &error_flag, sizeof(error_flag));
-                free(field1);
-                free(field2);
+                free(value);
                 pthread_exit(NULL);
             }
             break;
@@ -306,7 +296,6 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
             err_rcv = recv(client_fd, field1, size_field1, 0);
             if (err_rcv == -1)
             {
@@ -318,8 +307,6 @@ void *client_interaction(void *args)
 
             buffer = lookup(group->group_table, field1, HASHSIZE);
             printf("The value is %s\n", buffer->value);
-
-            free(field1);
 
             if (1 == 1) //verificar com o auth server
             {
@@ -345,7 +332,6 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
             err_rcv = recv(client_fd, field1, size_field1, 0);
             if (err_rcv == -1)
             {
@@ -359,8 +345,6 @@ void *client_interaction(void *args)
             {
                 printf("Hash deletion failed\n");
             }
-
-            free(field1);
 
             if (1 == 1) //verificar com o auth server
             {
@@ -376,7 +360,7 @@ void *client_interaction(void *args)
             }
             break;
         case 4:
-            err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
+            /*err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
             if (err_rcv == -1)
             {
                 perror("recieve");
@@ -402,11 +386,11 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            printf("RCL:Recebi %s e %s\n", field1, field2);
+            printf("RCL:Recebi %s e %s\n", field1, field2);*/
             /*
             Associar uma callback function à key
             */
-            free(field1);
+            /*free(field1);
             free(field2);
 
             if (1 == 1) //verificar com o auth server
@@ -420,9 +404,10 @@ void *client_interaction(void *args)
                 //guardar tempo de saida
                 write(client_fd, &error_flag, sizeof(error_flag));
                 pthread_exit(NULL);
-            }
+            }*/
             break;
         case 5:
+            hooked = 0;
             printf("Closing connection with client %s", "Agora ainda nao o tenho");
             connection_flag = 1;
             write(client_fd, &connection_flag, sizeof(connection_flag));

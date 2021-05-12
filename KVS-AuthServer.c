@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <sys/un.h>
 
-#define HASHSIZE 1001
+#define HASHSIZE 10001
 #define SERVER_SOCKET_ADDR "/tmp/auth_socket"
 
 int extract_command(char *command)
@@ -32,7 +32,7 @@ int main()
     struct sockaddr_un server_socket_addr;
     struct sockaddr_un sender_sock_addr;
     int sender_sock_addr_size = sizeof(sender_sock_addr);
-    char command[5], *field1, *field2;
+    char command[5], field1[512], field2[512];
     int size_field1, size_field2;
     hashtable *group;
     hashtable **vault;
@@ -69,51 +69,33 @@ int main()
         case 0:
             flag = 1;
 
-            n_bytes = recvfrom(server_socket, &size_field1, sizeof(size_field1), 0,
+            n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
                                (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
 
-            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
-            n_bytes = recvfrom(server_socket, field1, size_field1, 0,
+            n_bytes = recvfrom(server_socket, field2, sizeof(field2), 0,
                                (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
-
-            n_bytes = recvfrom(server_socket, &size_field2, sizeof(size_field2), 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
-            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
-            n_bytes = recvfrom(server_socket, field2, size_field2, 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
+            printf("%s e %s do Local\n", field1, field2);
             group = insert(vault, field1, field2, HASHSIZE);
-            free(field1);
-            free(field2);
             sendto(server_socket, &flag, sizeof(flag), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
         case 1:
             flag = 1;
-            n_bytes = recvfrom(server_socket, &size_field1, sizeof(size_field1), 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
-            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
-            n_bytes = recvfrom(server_socket, field1, size_field1, 0,
+            n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
                                (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
             if (delete_hash(vault, field1, HASHSIZE) == -1)
             {
                 printf("Hash deletion failed\n");
                 flag = -3;
             }
-            free(field1);
             sendto(server_socket, &flag, sizeof(flag), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
         case 2:
-            n_bytes = recvfrom(server_socket, &size_field1, sizeof(size_field1), 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
-            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
-            n_bytes = recvfrom(server_socket, field1, size_field1, 0,
+            n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
                                (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
 
-            n_bytes = recvfrom(server_socket, &size_field2, sizeof(size_field2), 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
-            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
-            n_bytes = recvfrom(server_socket, field2, size_field2, 0,
+            n_bytes = recvfrom(server_socket, field2, sizeof(field2), 0,
                                (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
             group = lookup(vault, field1, HASHSIZE);
             if (strcmp(group->value, field2) == 0) //correto
@@ -126,8 +108,6 @@ int main()
                 flag = -1;
                 printf("Combination was off\n");
             }
-            free(field1);
-            free(field2);
             sendto(server_socket, &flag, sizeof(flag), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;

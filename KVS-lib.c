@@ -20,6 +20,12 @@ int establish_connection(char *group_id, char *secret)
     int flag;
     struct sockaddr_un server_socket_addr, socket_addr_client;
 
+    if (sizeof(group_id) > 512 || sizeof(secret) > 512)
+    {
+        printf("Size of group and secret must be below 512 bytes.\n");
+        return -5;
+    }
+
     pid_t pid = getpid();
     snprintf(client_addr, 1000, "/tmp/client_socket_%d", pid);
     printf("%s\n", client_addr);
@@ -54,9 +60,9 @@ int establish_connection(char *group_id, char *secret)
     int size_secret = strlen(secret);
     write(send_socket, &command, sizeof(command));
     write(send_socket, &size_group, sizeof(size_group));
-    write(send_socket, group_id, strlen(group_id));
+    write(send_socket, group_id, size_group);
     write(send_socket, &size_secret, sizeof(size_secret));
-    write(send_socket, secret, strlen(secret));
+    write(send_socket, secret, size_secret);
 
     int err_rcv = recv(send_socket, &flag, sizeof(int), 0);
     if (err_rcv == -1)
@@ -82,6 +88,13 @@ int establish_connection(char *group_id, char *secret)
 int put_value(char *key, char *value)
 {
     int flag;
+
+    if (sizeof(key) < 0) //ainda a definir
+    {
+        printf("Size of group and secret must be below 512 bytes.\n");
+        return -5;
+    }
+
     if (1 == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "PUT_";
@@ -123,6 +136,13 @@ int put_value(char *key, char *value)
 int get_value(char *key, char **value)
 {
     int flag, size_buffer;
+
+    if (sizeof(key) < 0) //ainda a definir
+    {
+        printf("Size of group and secret must be below 512 bytes.\n");
+        return -5;
+    }
+
     if (1 == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "GET_";
@@ -178,6 +198,13 @@ int delete_value(char *key)
 {
     int flag, size_buffer;
     char *buffer;
+
+    if (sizeof(key) < 0) //ainda a definir
+    {
+        printf("Size of group and secret must be below 512 bytes.\n");
+        return -5;
+    }
+
     if (1 == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "DEL_";
