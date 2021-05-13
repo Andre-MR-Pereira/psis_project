@@ -30,13 +30,50 @@ int extract_command(char *command)
     return -1;
 }
 
+int extract_command2(char *packet, char *field1, char *field2)
+{
+    char *command, *f1, *f2;
+
+    command = strtok(packet, "_");
+
+    f1 = strtok(NULL, "_");
+    if (f1 != NULL)
+    {
+        strcpy(field1, f1);
+    }
+
+    f2 = strtok(NULL, "_");
+    if (f2 != NULL)
+    {
+        strcpy(field2, f2);
+    }
+
+    if (strcmp("CRE", command) == 0)
+    {
+        return 0;
+    }
+    else if (strcmp("DEL", command) == 0)
+    {
+        return 1;
+    }
+    else if (strcmp("CMP", command) == 0)
+    {
+        return 2;
+    }
+    else if (strcmp("ASK", command) == 0)
+    {
+        return 3;
+    }
+    return -1;
+}
+
 int main()
 {
     int server_socket, n_bytes, flag;
     struct sockaddr_un server_socket_addr;
     struct sockaddr_un sender_sock_addr;
     int sender_sock_addr_size = sizeof(sender_sock_addr);
-    char command[5], field1[512], field2[512];
+    char command[5], field1[512], field2[512], buffer[1040];
     int size_field1, size_field2;
     hashtable *group;
     hashtable **vault;
@@ -63,28 +100,30 @@ int main()
     //fork();
     while (1)
     {
-        n_bytes = recvfrom(server_socket, &command, sizeof(command), 0,
+        n_bytes = recvfrom(server_socket, &buffer, sizeof(buffer), 0,
                            (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
 
-        printf("received %d byte (string %s) from %s\n", n_bytes, command, sender_sock_addr.sun_path);
+        printf("received %d byte (string %s) from %s\n", n_bytes, buffer, sender_sock_addr.sun_path);
 
-        switch (extract_command(command))
+        switch (extract_command2(buffer, field1, field2))
         {
         case 0: //create
             flag = 1;
 
-            n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
+            //n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
+            //                   (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
             //gerar aqui o secret
-            n_bytes = recvfrom(server_socket, field2, sizeof(field2), 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
+            //n_bytes = recvfrom(server_socket, field2, sizeof(field2), 0,
+            //                   (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
+            //n_bytes = recvfrom(server_socket, field2, sizeof(field2), 0,
+            //                   (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
             printf("%s e %s do Local\n", field1, field2);
             //group = insert(vault, field1, secret, HASHSIZE);
             group = insert(vault, field1, field2, HASHSIZE);
 
-            if(group==NULL)//the group already exists
+            if (group == NULL) //the group already exists
             {
-                flag=-4; //confirmar que este não é usado em mais lado nenhum, significa que o grupo já existe
+                flag = -4; //confirmar que este não é usado em mais lado nenhum, significa que o grupo já existe
             }
 
             //enviar apenas 1 buffer com a flag e o secret em caso de sucesso
@@ -104,11 +143,11 @@ int main()
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
         case 2: //compare
-            n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
+            /*n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
                                (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
 
             n_bytes = recvfrom(server_socket, field2, sizeof(field2), 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
+                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);*/
             group = lookup(vault, field1, HASHSIZE);
             if (strcmp(group->value, field2) == 0) //correto
             {
@@ -124,7 +163,7 @@ int main()
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
         case 3: //ask for the secret of a certain group
-            
+
             break;
         default:
             printf("Command not found.\n");

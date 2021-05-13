@@ -68,6 +68,22 @@ int extract_command(char *command)
     return -1;
 }
 
+void assemble_payload(char *buffer, char *command, char *field1, char *field2)
+{
+    strcpy(buffer, "");
+    strcat(buffer, command);
+    if (field1 != NULL)
+    {
+        strcat(buffer, field1);
+        strcat(buffer, "_");
+    }
+    if (field2 != NULL)
+    {
+        strcat(buffer, field2);
+        strcat(buffer, "_");
+    }
+}
+
 int extract_pid(struct sockaddr_un sender_sock_addr)
 {
     int pid;
@@ -130,7 +146,7 @@ void *client_interaction(void *args)
     int client_fd = *client_buffer;
     int size_field1, size_field2, hooked = 0;
     int connection_flag, error_flag, n_bytes;
-    char command[5], field1[512], field2[512], auth_command[5], *value;
+    char command[5], field1[512], field2[512], auth_command[5], *value, auth_buffer[1040];
     struct sockaddr_un other_sock_addr;
 
     /*for (int i = 0; i < accepted_connections; i++)
@@ -158,6 +174,8 @@ void *client_interaction(void *args)
             pthread_exit(NULL);
         }
         printf("   %d                    RECEBI COMMAND|  %s\n", err_rcv, command);
+        memset(field1,0,sizeof(field1));
+        memset(field2, 0, sizeof(field2));
 
         switch (extract_command(command))
         {
@@ -191,17 +209,20 @@ void *client_interaction(void *args)
             mandar datagram para o auth server
             */
 
-           //falta o bind?  pq o auth server vai ter de lhe responder com o secret
+            //falta o bind?  pq o auth server vai ter de lhe responder com o secret
             int other_sock_addr_size = sizeof(other_sock_addr);
             strcpy(other_sock_addr.sun_path, AUTH_SOCKET_ADDR);
             other_sock_addr.sun_family = AF_UNIX;
 
             strcpy(auth_command, "CRE_");
-            sendto(send_socket, &auth_command, sizeof(auth_command), 0,
+            /*sendto(send_socket, &auth_command, sizeof(auth_command), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
             sendto(send_socket, field1, strlen(field1), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
             sendto(send_socket, field2, strlen(field2), 0,
+                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));*/
+            assemble_payload(auth_buffer, auth_command, field1, field2);
+            sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
             n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
@@ -209,11 +230,14 @@ void *client_interaction(void *args)
             printf("A connection flag foi %d\n", connection_flag);
 
             strcpy(auth_command, "CMP_");
-            sendto(send_socket, &auth_command, sizeof(auth_command), 0,
+            /*sendto(send_socket, &auth_command, sizeof(auth_command), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
             sendto(send_socket, field1, strlen(field1), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
             sendto(send_socket, field2, strlen(field2), 0,
+                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));*/
+            assemble_payload(auth_buffer, auth_command, field1, field2);
+            sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
             n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
@@ -454,7 +478,7 @@ int UserInput()
         {
             //enviar msg ao AuthServer a ver se o grupo já existe (pq não podem haver grupos iguais em computadores diferentes)
             //(basta verificar no AuthServer)
-            
+
             strcpy(auth_command, "CRE_");
             //enviar apenas num sendto tudo?
             sendto(send_socket, &auth_command, sizeof(auth_command), 0,
@@ -469,10 +493,12 @@ int UserInput()
             //rever isto, se for para enviar tudo num só buffer
             //temos que fazer strok e analisar 1º a flag
             //e se for 1 então foi sucesso e tira-se o secret
-            if(connection_flag == -4){
+            if (connection_flag == -4)
+            {
                 printf("The group already exists\n");
             }
-            else{
+            else
+            {
                 //printf("The secret of group %s is %s\n", group_name, secret);
                 //se o grupo ainda não existir no AuthServer, então cria-se o grupo no LocalServer
                 create_new_group(group_name);
@@ -500,19 +526,20 @@ int UserInput()
                 strcpy(auth_command, "DEL_");
                 //enviar apenas num sendto tudo?
                 sendto(send_socket, &auth_command, sizeof(auth_command), 0,
-                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
                 sendto(send_socket, group_name, strlen(field1), 0,
-                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
                 n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
-                                NULL, NULL);
+                                   NULL, NULL);
                 printf("A connection flag foi %d\n", connection_flag);
 
-                if(connection_flag==-3) //deletion failed in the AuthServer
+                if (connection_flag == -3) //deletion failed in the AuthServer
                 {
                     printf("Deletion in the AuthServer failed\n");
                 }
-                else{
+                else
+                {
                     //deleting local info of the group:
                     free(aux->group_table);
                     free(aux);     //the same as free(groups);
@@ -529,19 +556,20 @@ int UserInput()
                         strcpy(auth_command, "DEL_");
                         //enviar apenas num sendto tudo?
                         sendto(send_socket, &auth_command, sizeof(auth_command), 0,
-                            (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                               (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
                         sendto(send_socket, group_name, strlen(field1), 0,
-                            (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                               (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
                         n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
-                                        NULL, NULL);
+                                           NULL, NULL);
                         printf("A connection flag foi %d\n", connection_flag);
 
-                        if(connection_flag==-3) //deletion failed in the AuthServer
+                        if (connection_flag == -3) //deletion failed in the AuthServer
                         {
                             printf("Deletion in the AuthServer failed\n");
                         }
-                        else{
+                        else
+                        {
                             //deleting local info of the group:
                             prev->next = aux->next;
                             free(aux->group_table);
@@ -565,10 +593,11 @@ int UserInput()
     {
         hash_list *search_group;
 
-        if(sscanf(input, " %s %d", option, group_name)==2){
+        if (sscanf(input, " %s %s", option, group_name) == 2)
+        {
             //verificar se o grupo existe
             search_group = lookup_group(group_name);
-            if(search_group==NULL)
+            if (search_group == NULL)
             {
                 printf("The group %s doesn't exist\n", group_name);
             }
@@ -579,12 +608,12 @@ int UserInput()
                 //percorrer a lista do grupo e contar o nº de elementos
 
                 //printf("The group %s has %d key-value pairs and its secret is %s\n", group_name, n_pairs_kv, secret);
-
             }
 
             return 0;
         }
-        else return 1;
+        else
+            return 1;
     }
     else if (strcmp(option, "status") == 0)
     {
@@ -610,10 +639,12 @@ void *user_interface(void *args)
 }
 
 //sets the provided buffer to '\0'
-void cleanBuffer(char* buff){
-	for(int i=0; i<strlen(buff); i++){
-		buff[i]='\0';
-	}
+void cleanBuffer(char *buff)
+{
+    for (int i = 0; i < strlen(buff); i++)
+    {
+        buff[i] = '\0';
+    }
 }
 
 int main()
