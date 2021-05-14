@@ -8,29 +8,7 @@
 #define HASHSIZE 10001
 #define SERVER_SOCKET_ADDR "/tmp/auth_socket"
 
-int extract_command(char *command)
-{
-    char *token = strtok(command, "_");
-    if (strcmp("CRE", token) == 0)
-    {
-        return 0;
-    }
-    else if (strcmp("DEL", token) == 0)
-    {
-        return 1;
-    }
-    else if (strcmp("CMP", token) == 0)
-    {
-        return 2;
-    }
-    else if (strcmp("ASK", token) == 0)
-    {
-        return 3;
-    }
-    return -1;
-}
-
-int extract_command2(char *packet, char *field1, char *field2)
+int extract_command(char *packet, char *field1, char *field2)
 {
     char *command, *f1, *f2;
 
@@ -105,7 +83,7 @@ int main()
 
         printf("received %d byte (string %s) from %s\n", n_bytes, buffer, sender_sock_addr.sun_path);
 
-        switch (extract_command2(buffer, field1, field2))
+        switch (extract_command(buffer, field1, field2))
         {
         case 0: //create
             flag = 1;
@@ -132,8 +110,8 @@ int main()
             break;
         case 1: //delete
             flag = 1;
-            n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
+            /*n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
+                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);*/
             if (delete_hash(vault, field1, HASHSIZE) == -1)
             {
                 printf("Hash deletion failed\n");

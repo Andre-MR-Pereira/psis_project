@@ -4,6 +4,11 @@
 
 #define HASHSIZE 3
 
+void *callback(char *args)
+{
+    printf("+++++++++++++++++++A FUNCAO DE CALLBACK FOI CHAMADA! +++++++++++++++++++\n");
+}
+
 int main()
 {
     hashtable **teste, *aux;
@@ -84,9 +89,9 @@ int main()
     put_value("Laranja", "39875983759236589243659237392856723");
     put_value("Mabeco", "5");
     char *buffer;
-    get_value("Laranja", &buffer); //bug de string com tamanho 5
+    get_value("Laranja", &buffer);
     printf("Voltou %s\n", buffer);
     delete_value("Mabeco");
-
+    register_callback("Laranja", (*callback)(NULL));
     return 0;
 }

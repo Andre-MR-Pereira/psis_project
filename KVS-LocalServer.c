@@ -174,7 +174,7 @@ void *client_interaction(void *args)
             pthread_exit(NULL);
         }
         printf("   %d                    RECEBI COMMAND|  %s\n", err_rcv, command);
-        memset(field1,0,sizeof(field1));
+        memset(field1, 0, sizeof(field1));
         memset(field2, 0, sizeof(field2));
 
         switch (extract_command(command))
@@ -244,7 +244,7 @@ void *client_interaction(void *args)
                                NULL, NULL);
             printf("A connection flag foi %d\n", connection_flag);
 
-            if (1 == 1) //verificar com o auth server
+            if (connection_flag == 1) //verificar com o auth server
             {
                 if (lookup_group(field1) == NULL)
                 {
@@ -385,51 +385,41 @@ void *client_interaction(void *args)
             }
             break;
         case 4: //register_callback
-            /*err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
+            err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
             if (err_rcv == -1)
             {
                 perror("recieve");
                 exit(-1);
             }
-            field1 = (char *)malloc((size_field1 + 1) * sizeof(char));
             err_rcv = recv(client_fd, field1, size_field1, 0);
             if (err_rcv == -1)
             {
                 perror("recieve");
                 exit(-1);
             }
+
             err_rcv = recv(client_fd, &size_field2, sizeof(size_field2), 0);
             if (err_rcv == -1)
             {
                 perror("recieve");
                 exit(-1);
             }
-            field2 = (char *)malloc((size_field2 + 1) * sizeof(char));
             err_rcv = recv(client_fd, field2, size_field2, 0);
             if (err_rcv == -1)
             {
                 perror("recieve");
                 exit(-1);
             }
-            printf("RCL:Recebi %s e %s\n", field1, field2);*/
+
+            printf("RCL:Recebi %s e %s\n", field1, field2);
             /*
             Associar uma callback function à key
             */
-            /*free(field1);
-            free(field2);
+            buffer = lookup(group->group_table, field1, HASHSIZE);
+            printf("The value is %s\n", buffer->value);
+            connection_flag = 1;
+            write(client_fd, &connection_flag, sizeof(connection_flag));
 
-            if (1 == 1) //verificar com o auth server
-            {
-                connection_flag = 1;
-                write(client_fd, &connection_flag, sizeof(connection_flag));
-            }
-            else
-            {
-                error_flag = -1;
-                //guardar tempo de saida
-                write(client_fd, &error_flag, sizeof(error_flag));
-                pthread_exit(NULL);
-            }*/
             break;
         case 5: //close_connection
             hooked = 0;

@@ -242,6 +242,41 @@ int delete_value(char *key)
 
 int register_callback(char *key, void (*callback_function)(char *))
 {
+    int flag;
+    if (1 == 1) //verificar que a socket esta ligada ao server
+    {
+        char command[5] = "RCL_";
+        int size_key = strlen(key);
+        write(send_socket, &command, sizeof(command));
+        write(send_socket, &size_key, sizeof(size_key));
+        write(send_socket, key, strlen(key));
+        write(send_socket, callback_function, sizeof(callback_function));
+
+        int err_rcv = recv(send_socket, &flag, sizeof(int), 0);
+        if (err_rcv == -1)
+        {
+            perror("recieve");
+            exit(-1);
+        }
+
+        //switch case para os erros
+        if (flag == 1)
+        {
+            printf("Callback function has been mounted\n");
+            return 0;
+        }
+        else
+        {
+            remove(client_addr);
+            printf("Connection refused. Pair group/secret is wrong\n");
+            return -1;
+        }
+    }
+    else
+    {
+        printf("You are not connected to any group.\n");
+        return -100;
+    }
 }
 
 int close_connection()
