@@ -84,6 +84,15 @@ void assemble_payload(char *buffer, char *command, char *field1, char *field2)
     }
 }
 
+//sets the provided buffer to '\0'
+void cleanBuffer(char *buff)
+{
+    for (int i = 0; i < strlen(buff); i++)
+    {
+        buff[i] = '\0';
+    }
+}
+
 int extract_pid(struct sockaddr_un sender_sock_addr)
 {
     int pid;
@@ -228,6 +237,7 @@ void *client_interaction(void *args)
             n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
                                NULL, NULL);
             printf("A connection flag foi %d\n", connection_flag);
+            cleanBuffer(auth_buffer); //só para não ficar tudo bugado, limpa-se o buffer antes de mandar mais cenas
 
             strcpy(auth_command, "CMP_");
             /*sendto(send_socket, &auth_command, sizeof(auth_command), 0,
@@ -443,7 +453,7 @@ int UserInput()
 {
 
     char option[10] = "\0", input[100] = "\0", group_name[20] = "\n", secret[20] = "\n";
-    char field1[512], field2[512], auth_command[5];
+    char field1[512], field2[512], auth_command[5], auth_buffer[1040];
     int connection_flag, n_bytes, n_pairs_kv; //n_pairs_kv = number of key-value pairs
     struct sockaddr_un other_sock_addr;
 
@@ -470,7 +480,7 @@ int UserInput()
             //(basta verificar no AuthServer)
 
             strcpy(auth_command, "CRE_");
-            //enviar apenas num sendto tudo?
+            /*//enviar apenas num sendto tudo?
             sendto(send_socket, &auth_command, sizeof(auth_command), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
             sendto(send_socket, group_name, strlen(field1), 0,
@@ -479,8 +489,16 @@ int UserInput()
             n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
                                NULL, NULL);
             printf("A connection flag foi %d\n", connection_flag);
+            */
+            assemble_payload(auth_buffer, auth_command, field1, field2);
+            sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
+                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
-            //rever isto, se for para enviar tudo num só buffer
+            n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
+                               NULL, NULL);
+            printf("A connection flag foi %d\n", connection_flag);
+            cleanBuffer(auth_buffer);
+            
             //temos que fazer strok e analisar 1º a flag
             //e se for 1 então foi sucesso e tira-se o secret
             if (connection_flag == -4)
@@ -628,14 +646,7 @@ void *user_interface(void *args)
     }
 }
 
-//sets the provided buffer to '\0'
-void cleanBuffer(char *buff)
-{
-    for (int i = 0; i < strlen(buff); i++)
-    {
-        buff[i] = '\0';
-    }
-}
+
 
 int main()
 {
