@@ -80,7 +80,7 @@ int establish_connection(char *group_id, char *secret)
     else
     {
         remove(client_addr);
-        printf("Connection refused. Pair group/secret is wrong\n");
+        printf("Establish failed\n");
         return -1;
     }
 }
@@ -121,8 +121,7 @@ int put_value(char *key, char *value)
         }
         else
         {
-            remove(client_addr);
-            printf("Connection refused. Pair group/secret is wrong\n");
+            printf("Put failed\n");
             return -1;
         }
     }
@@ -182,8 +181,7 @@ int get_value(char *key, char **value)
         }
         else
         {
-            remove(client_addr);
-            printf("Connection refused. Pair group/secret is wrong\n");
+            printf("Get Failed\n");
             return -1;
         }
     }
@@ -228,8 +226,7 @@ int delete_value(char *key)
         }
         else
         {
-            remove(client_addr);
-            printf("Connection refused. Pair group/secret is wrong\n");
+            printf("Del failed\n");
             return -1;
         }
     }
@@ -242,34 +239,53 @@ int delete_value(char *key)
 
 int register_callback(char *key, void (*callback_function)(char *))
 {
-    int flag;
+    int flag, err_rcv, trigger;
+    char *buffer;
     if (1 == 1) //verificar que a socket esta ligada ao server
     {
-        char command[5] = "RCL_";
-        int size_key = strlen(key);
-        write(send_socket, &command, sizeof(command));
-        write(send_socket, &size_key, sizeof(size_key));
-        write(send_socket, key, strlen(key));
-        write(send_socket, callback_function, sizeof(callback_function));
-
-        int err_rcv = recv(send_socket, &flag, sizeof(int), 0);
-        if (err_rcv == -1)
+        if (fork() != 0)
         {
-            perror("recieve");
-            exit(-1);
-        }
+            err_rcv = recv(send_socket, &trigger, sizeof(trigger), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            printf("A flag do pai: %d\n", trigger);
 
-        //switch case para os erros
-        if (flag == 1)
-        {
-            printf("Callback function has been mounted\n");
-            return 0;
+            if (trigger == 100)
+            {
+                printf("WHAT==");
+                (*callback_function)(buffer);
+            }
         }
         else
         {
-            remove(client_addr);
-            printf("Connection refused. Pair group/secret is wrong\n");
-            return -1;
+            char command[5] = "RCL_";
+            int size_key = strlen(key);
+            write(send_socket, &command, sizeof(command));
+            write(send_socket, &size_key, sizeof(size_key));
+            write(send_socket, key, strlen(key));
+
+            err_rcv = recv(send_socket, &flag, sizeof(int), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            printf("A flag do filho: %d\n", flag);
+
+            //switch case para os erros
+            if (flag == 1)
+            {
+                printf("Callback function has been mounted\n");
+                return 0;
+            }
+            else
+            {
+                printf("Callback failed\n");
+                return -1;
+            }
         }
     }
     else
@@ -293,17 +309,15 @@ int close_connection()
             perror("recieve");
             exit(-1);
         }
+        printf("A flag do close %d\n", flag);
 
-        //switch case para os erros
         if (flag == 1)
         {
-            printf("ok\n");
-            return 0;
+            printf("Connection closed\n");
         }
         else
         {
-            remove(client_addr);
-            printf("Connection refused. Pair group/secret is wrong\n");
+            printf("Close failed\n");
             return -1;
         }
     }

@@ -308,6 +308,7 @@ void *client_interaction(void *args)
                 exit(-1);
             }
             printf("PUT:Recebi %s e %s\n", field1, value);
+
             if (group != NULL && insert(group->group_table, field1, value, HASHSIZE) != NULL)
             {
                 connection_flag = 1;
@@ -339,11 +340,8 @@ void *client_interaction(void *args)
             }
 
             printf("GET:Recebi %s\n", field1);
-
             buffer = lookup(group->group_table, field1, HASHSIZE);
-            printf("The value is %s\n", buffer->value);
-
-            if (1 == 1) //verificar com o auth server
+            if (group != NULL && buffer != NULL)
             {
                 connection_flag = 1;
                 write(client_fd, &connection_flag, sizeof(connection_flag));
@@ -355,9 +353,7 @@ void *client_interaction(void *args)
             else
             {
                 error_flag = -1;
-                //guardar tempo de saida
                 write(client_fd, &error_flag, sizeof(error_flag));
-                pthread_exit(NULL);
             }
             break;
         case 3: //delete_value
@@ -376,22 +372,15 @@ void *client_interaction(void *args)
 
             printf("DEL:Recebi %s\n", field1);
 
-            if (delete_hash(group->group_table, field1, HASHSIZE) == -1)
+            if (group != NULL && delete_hash(group->group_table, field1, HASHSIZE) == -1) //verificar com o auth server
             {
-                printf("Hash deletion failed\n");
-            }
-
-            if (1 == 1) //verificar com o auth server
-            {
-                connection_flag = 1;
-                write(client_fd, &connection_flag, sizeof(connection_flag));
+                error_flag = -1;
+                write(client_fd, &error_flag, sizeof(error_flag));
             }
             else
             {
-                error_flag = -1;
-                //guardar tempo de saida
-                write(client_fd, &error_flag, sizeof(error_flag));
-                pthread_exit(NULL);
+                connection_flag = 1;
+                write(client_fd, &connection_flag, sizeof(connection_flag));
             }
             break;
         case 4: //register_callback
@@ -408,32 +397,29 @@ void *client_interaction(void *args)
                 exit(-1);
             }
 
-            err_rcv = recv(client_fd, &size_field2, sizeof(size_field2), 0);
-            if (err_rcv == -1)
-            {
-                perror("recieve");
-                exit(-1);
-            }
-            err_rcv = recv(client_fd, field2, size_field2, 0);
-            if (err_rcv == -1)
-            {
-                perror("recieve");
-                exit(-1);
-            }
-
-            printf("RCL:Recebi %s e %s\n", field1, field2);
+            printf("RCL:Recebi %s\n", field1);
             /*
             Associar uma callback function à key
             */
             buffer = lookup(group->group_table, field1, HASHSIZE);
-            printf("The value is %s\n", buffer->value);
-            connection_flag = 1;
+            if (group != NULL && buffer != NULL)
+            {
+                connection_flag = 1;
+                write(client_fd, &connection_flag, sizeof(connection_flag));
+            }
+            else
+            {
+                error_flag = -1;
+                write(client_fd, &error_flag, sizeof(error_flag));
+            }
+
+            connection_flag = 100;
             write(client_fd, &connection_flag, sizeof(connection_flag));
 
             break;
         case 5: //close_connection
             hooked = 0;
-            printf("Closing connection with client %s", "Agora ainda nao o tenho");
+            printf("Closing connection with client\n");
             connection_flag = 1;
             write(client_fd, &connection_flag, sizeof(connection_flag));
             //guardar tempo de saida
@@ -498,7 +484,7 @@ int UserInput()
                                NULL, NULL);
             printf("A connection flag foi %d\n", connection_flag);
             cleanBuffer(auth_buffer);
-            
+
             //temos que fazer strok e analisar 1º a flag
             //e se for 1 então foi sucesso e tira-se o secret
             if (connection_flag == -4)
@@ -645,8 +631,6 @@ void *user_interface(void *args)
         }
     }
 }
-
-
 
 int main()
 {

@@ -7,6 +7,7 @@
 void *callback(char *args)
 {
     printf("+++++++++++++++++++A FUNCAO DE CALLBACK FOI CHAMADA! +++++++++++++++++++\n");
+    printf("%s\n", args);
 }
 
 int main()
@@ -92,6 +93,7 @@ int main()
     get_value("Laranja", &buffer);
     printf("Voltou %s\n", buffer);
     delete_value("Mabeco");
-    register_callback("Laranja", (*callback)(NULL));
+    register_callback("Laranja", (*callback)("BACANZ"));
+    close_connection();
     return 0;
 }
