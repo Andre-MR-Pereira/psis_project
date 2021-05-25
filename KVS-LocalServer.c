@@ -7,12 +7,16 @@
 #include <sys/un.h>
 #include <pthread.h>
 #include <time.h>
+#include <netinet/in.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
 #include "hash.h"
 
 #define HASHSIZE 1001
 #define SERVER_SOCKET_ADDR "/tmp/server_socket"
-#define AUTH_SOCKET_ADDR "/tmp/auth_socket"
-#define LOCAL_SOCKET_ADDR "/tmp/local"
+#define AUTH_SOCKET_ADDR "192.168.1.73"
+
+pthread_rwlock_t groups_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 typedef struct client_list
 {
@@ -27,6 +31,7 @@ typedef struct hash_list
 {
     char *group;
     hashtable **group_table;
+    pthread_rwlock_t hash_rwlock;
     struct hash_list *next;
 } hash_list;
 
@@ -131,6 +136,10 @@ void create_new_group(char *group)
     aux = (hash_list *)malloc(sizeof(hash_list));
     aux->group = strdup(group);
     aux->group_table = allocate_table(HASHSIZE);
+    if (pthread_rwlock_init(&(aux->hash_rwlock), NULL) != 0)
+    {
+        perror("Error creating a hash lock");
+    }
     if (groups == NULL)
     {
         aux->next = NULL;
@@ -156,7 +165,7 @@ void *client_interaction(void *args)
     int size_field1, size_field2, hooked = 0;
     int connection_flag, error_flag, n_bytes;
     char command[5], field1[512], field2[512], auth_command[5], *value, auth_buffer[1040];
-    struct sockaddr_un other_sock_addr;
+    struct sockaddr_in other_sock_addr;
 
     /*for (int i = 0; i < accepted_connections; i++)
     {
@@ -218,19 +227,13 @@ void *client_interaction(void *args)
             mandar datagram para o auth server
             */
 
-            //falta o bind?  pq o auth server vai ter de lhe responder com o secret
-            int other_sock_addr_size = sizeof(other_sock_addr);
-            strcpy(other_sock_addr.sun_path, AUTH_SOCKET_ADDR);
-            other_sock_addr.sun_family = AF_UNIX;
+            other_sock_addr.sin_family = AF_INET;
+            inet_aton(AUTH_SOCKET_ADDR, &other_sock_addr.sin_addr);
+            other_sock_addr.sin_port = htons(3001);
 
             strcpy(auth_command, "CRE_");
-            /*sendto(send_socket, &auth_command, sizeof(auth_command), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, field1, strlen(field1), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, field2, strlen(field2), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));*/
             assemble_payload(auth_buffer, auth_command, field1, field2);
+
             sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
@@ -240,12 +243,6 @@ void *client_interaction(void *args)
             cleanBuffer(auth_buffer); //só para não ficar tudo bugado, limpa-se o buffer antes de mandar mais cenas
 
             strcpy(auth_command, "CMP_");
-            /*sendto(send_socket, &auth_command, sizeof(auth_command), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, field1, strlen(field1), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, field2, strlen(field2), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));*/
             assemble_payload(auth_buffer, auth_command, field1, field2);
             sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
@@ -260,7 +257,15 @@ void *client_interaction(void *args)
                 {
                     create_new_group(field1);
                 }
+                if (pthread_rwlock_rdlock(&groups_rwlock) != 0)
+                {
+                    perror("Lock EST write lock failed");
+                }
                 group = lookup_group(field1);
+                if (pthread_rwlock_unlock(&groups_rwlock) != 0)
+                {
+                    perror("Unlock EST write lock failed");
+                }
                 show_groups();
                 connection_flag = 1;
                 hooked = 1;
@@ -309,14 +314,28 @@ void *client_interaction(void *args)
             }
             printf("PUT:Recebi %s e %s\n", field1, value);
 
+            if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
+            {
+                perror("Lock Put write lock failed");
+            }
             if (group != NULL && insert(group->group_table, field1, value, HASHSIZE) != NULL)
             {
+                if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                {
+                    perror("Unlock Put write lock failed");
+                }
+
                 connection_flag = 1;
                 write(client_fd, &connection_flag, sizeof(connection_flag));
                 free(value);
             }
             else //cuidado com else else que o insert pode ser NULL
             {
+                if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                {
+                    perror("Unlock Put write lock failed");
+                }
+
                 printf("You haven´t established a connection to a group yet.\n");
                 error_flag = -1;
                 //guardar tempo de saida
@@ -340,7 +359,19 @@ void *client_interaction(void *args)
             }
 
             printf("GET:Recebi %s\n", field1);
+
+            if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
+            {
+                perror("Lock GET write lock failed");
+            }
+
             buffer = lookup(group->group_table, field1, HASHSIZE);
+
+            if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+            {
+                perror("Unlock GET write lock failed");
+            }
+
             if (group != NULL && buffer != NULL)
             {
                 connection_flag = 1;
@@ -372,13 +403,28 @@ void *client_interaction(void *args)
 
             printf("DEL:Recebi %s\n", field1);
 
+            if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
+            {
+                perror("Lock DEL write lock failed");
+            }
+
             if (group != NULL && delete_hash(group->group_table, field1, HASHSIZE) == -1) //verificar com o auth server
             {
+                if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                {
+                    perror("Unlock DEL write lock failed");
+                }
+
                 error_flag = -1;
                 write(client_fd, &error_flag, sizeof(error_flag));
             }
             else
             {
+                if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                {
+                    perror("Unlock DEL write lock failed");
+                }
+
                 connection_flag = 1;
                 write(client_fd, &connection_flag, sizeof(connection_flag));
             }
@@ -446,7 +492,7 @@ int UserInput()
     //falta o bind?  pq o auth server vai ter de lhe responder com o secret
     int other_sock_addr_size = sizeof(other_sock_addr);
     strcpy(other_sock_addr.sun_path, AUTH_SOCKET_ADDR);
-    other_sock_addr.sun_family = AF_UNIX; //alterar depois para AF_INET
+    other_sock_addr.sun_family = AF_INET; //alterar depois para AF_INET
 
     printf("Enter command (note: group names must be 100 or less characters)\n");
     if (fgets(input, 100, stdin) == NULL)
@@ -637,10 +683,9 @@ int main()
     int server_socket, buffer;
     struct sockaddr_un server_socket_addr, client_socket_addr;
     pthread_t t_id[10];
-    struct sockaddr_un socket_addr_client;
+    struct sockaddr_in socket_addr_client;
 
     remove(SERVER_SOCKET_ADDR);
-    remove(LOCAL_SOCKET_ADDR);
 
     server_socket = socket(AF_UNIX, SOCK_STREAM, 0);
     if (server_socket == -1)
@@ -663,15 +708,14 @@ int main()
         exit(-1);
     }
 
-    socket_addr_client.sun_family = AF_UNIX;
-
-    strcpy(socket_addr_client.sun_path, LOCAL_SOCKET_ADDR);
-
-    send_socket = socket(AF_UNIX, SOCK_DGRAM, 0);
+    send_socket = socket(AF_INET, SOCK_DGRAM, 0);
     if (send_socket == -1)
     {
         exit(-1);
     }
+    socket_addr_client.sin_family = AF_INET;
+    socket_addr_client.sin_port = htons(3000);
+    socket_addr_client.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(send_socket, (struct sockaddr *)&socket_addr_client, sizeof(socket_addr_client)) == -1)
     {

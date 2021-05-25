@@ -1,4 +1,6 @@
 #include "KVS-lib.h"
+#include "KVS-libmod.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -8,12 +10,6 @@
 #include <string.h>
 #include <sys/un.h>
 #include <pthread.h>
-
-#define SERVER_SOCKET_ADDR "/tmp/server_socket"
-
-char client_addr[25];
-
-int send_socket;
 
 int establish_connection(char *group_id, char *secret)
 {
@@ -241,25 +237,58 @@ int register_callback(char *key, void (*callback_function)(char *))
 {
     int flag, err_rcv, trigger;
     char *buffer;
+    int plug;
+    /*char plug_addr[30] = "2";
+    struct sockaddr_un server_socket_addr, socket_addr_client;
+
+    socket_addr_client.sun_family = AF_UNIX;
+    strcat(plug_addr, client_addr);
+    printf("%s\n", plug_addr);
+    strcpy(socket_addr_client.sun_path, client_addr);
+
+    plug = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (plug == -1)
+    {
+        exit(-1);
+    }
+
+    if (bind(plug, (struct sockaddr *)&socket_addr_client, sizeof(socket_addr_client)) == -1)
+    {
+        printf("Socket for key %s already created\n", key);
+        exit(-1);
+    }
+
+    strcpy(server_socket_addr.sun_path, SERVER_SOCKET_ADDR);
+    server_socket_addr.sun_family = AF_UNIX;
+
+    int err_c = connect(plug, (struct sockaddr *)&server_socket_addr, sizeof(server_socket_addr));
+    if (err_c == -1)
+    {
+        perror("connect");
+        exit(-1);
+    }*/
     if (1 == 1) //verificar que a socket esta ligada ao server
     {
-        if (fork() != 0)
+        /*if (fork() != 0)
         {
-            err_rcv = recv(send_socket, &trigger, sizeof(trigger), 0);
-            if (err_rcv == -1)
-            {
-                perror("recieve");
-                exit(-1);
-            }
-            printf("A flag do pai: %d\n", trigger);
+            while(1){
+                err_rcv = recv(send_socket, &trigger, sizeof(trigger), 0);
+                if (err_rcv == -1)
+                {
+                    perror("recieve");
+                    exit(-1);
+                }
+                printf("A flag do pai: %d\n", trigger);
 
-            if (trigger == 100)
-            {
-                printf("WHAT==");
-                (*callback_function)(buffer);
+                if (trigger == 100)
+                {
+                    printf("WHAT");
+                    //(*callback_function)(buffer);
+                }
             }
-        }
-        else
+            
+        }*/
+        /*else
         {
             char command[5] = "RCL_";
             int size_key = strlen(key);
@@ -286,7 +315,7 @@ int register_callback(char *key, void (*callback_function)(char *))
                 printf("Callback failed\n");
                 return -1;
             }
-        }
+        }*/
     }
     else
     {
@@ -314,6 +343,8 @@ int close_connection()
         if (flag == 1)
         {
             printf("Connection closed\n");
+            remove(client_addr);
+            return 0;
         }
         else
         {

@@ -4,9 +4,11 @@
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <sys/un.h>
+#include <netinet/in.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
 
 #define HASHSIZE 10001
-#define SERVER_SOCKET_ADDR "/tmp/auth_socket"
 
 int extract_command(char *packet, char *field1, char *field2)
 {
@@ -48,25 +50,28 @@ int extract_command(char *packet, char *field1, char *field2)
 int main()
 {
     int server_socket, n_bytes, flag;
-    struct sockaddr_un server_socket_addr;
-    struct sockaddr_un sender_sock_addr;
+    struct sockaddr_in server_socket_addr;
+    struct sockaddr_in sender_sock_addr;
+    socklen_t size_sender_addr;
     int sender_sock_addr_size = sizeof(sender_sock_addr);
     char command[5], field1[512], field2[512], buffer[1040];
     int size_field1, size_field2;
     hashtable *group;
     hashtable **vault;
-    vault = allocate_table(HASHSIZE);
     char fieldz[100];
-    remove(SERVER_SOCKET_ADDR);
-    //depois alterar para AF_INET
-    server_socket = socket(AF_UNIX, SOCK_DGRAM, 0);
+
+    vault = allocate_table(HASHSIZE);
+
+    server_socket = socket(AF_INET, SOCK_DGRAM, 0);
     if (server_socket == -1)
     {
         exit(-1);
     }
 
-    server_socket_addr.sun_family = AF_UNIX; //depois alterar para AF_INET
-    strcpy(server_socket_addr.sun_path, SERVER_SOCKET_ADDR);
+    inet_aton("192.168.1.73", &server_socket_addr.sin_addr);
+    server_socket_addr.sin_port = htons(3001);
+    server_socket_addr.sin_family = AF_INET;
+    server_socket_addr.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(server_socket, (struct sockaddr *)&server_socket_addr, sizeof(server_socket_addr)) == -1)
     {
@@ -74,14 +79,13 @@ int main()
         exit(-1);
     }
 
-    //fork();
-    //fork();
     while (1)
     {
+        size_sender_addr = sizeof(struct sockaddr_storage);
         n_bytes = recvfrom(server_socket, &buffer, sizeof(buffer), 0,
-                           (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
+                           (struct sockaddr *)&sender_sock_addr, &size_sender_addr);
 
-        printf("received %d byte (string %s) from %s\n", n_bytes, buffer, sender_sock_addr.sun_path);
+        //printf("received %d byte (string %s) from %d\n", n_bytes, buffer, sender_sock_addr.sin_addr.s_addr);
 
         switch (extract_command(buffer, field1, field2))
         {
