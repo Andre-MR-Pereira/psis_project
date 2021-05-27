@@ -4,3 +4,4 @@
 char client_addr[25];
 
 int send_socket;
+int hooked = 0;

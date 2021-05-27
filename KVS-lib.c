@@ -71,14 +71,20 @@ int establish_connection(char *group_id, char *secret)
     //switch case para os erros
     if (flag == 1)
     {
-        printf("ok\n");
-        return 0;
+        hooked = 1;
+        printf("You established connection with the group %s\n", group_id);
+        return flag;
+    }
+    else if (flag = -4)
+    {
+        printf("Establish failed with the group %s,so you will remain connected to your previous group\n", group_id);
+        return flag;
     }
     else
     {
         remove(client_addr);
-        printf("Establish failed\n");
-        return -1;
+        printf("Establish failed: Not connected to any group\n");
+        return flag;
     }
 }
 
@@ -89,10 +95,10 @@ int put_value(char *key, char *value)
     if (sizeof(key) < 0) //ainda a definir
     {
         printf("Size of group and secret must be below 512 bytes.\n");
-        return -5;
+        return -11;
     }
 
-    if (1 == 1) //verificar que a socket esta ligada ao server
+    if (hooked == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "PUT_";
         int size_key = strlen(key);
@@ -113,19 +119,24 @@ int put_value(char *key, char *value)
         //switch case para os erros
         if (flag == 1)
         {
-            printf("ok\n");
-            return 0;
+            printf("The Key/Value has been placed\n");
+            return flag;
+        }
+        else if (flag == -3)
+        {
+            printf("Put failed\n");
+            return flag;
         }
         else
         {
-            printf("Put failed\n");
-            return -1;
+            printf("Put: Unknown flag\n");
+            return -6;
         }
     }
     else
     {
         printf("You are not connected to any group.\n");
-        return -100;
+        return -1;
     }
 }
 
@@ -136,10 +147,10 @@ int get_value(char *key, char **value)
     if (sizeof(key) < 0) //ainda a definir
     {
         printf("Size of group and secret must be below 512 bytes.\n");
-        return -5;
+        return -11;
     }
 
-    if (1 == 1) //verificar que a socket esta ligada ao server
+    if (hooked == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "GET_";
         int size_key = strlen(key);
@@ -167,25 +178,29 @@ int get_value(char *key, char **value)
             perror("recieve");
             exit(-1);
         }
-        printf("Size %d e '%s'\n", size_buffer, buffer);
-        //switch case para os erros
+
         if (flag == 1)
         {
-            printf("ok\n");
+            printf("Value has been fetched\n");
             *value = (char *)malloc((size_buffer + 1) * sizeof(char));
             strcpy(*value, buffer);
-            return 0;
+            return flag;
+        }
+        else if (flag == -2)
+        {
+            printf("Key not found\n");
+            return flag;
         }
         else
         {
-            printf("Get Failed\n");
-            return -1;
+            printf("Get: Unknown flag\n");
+            return -6;
         }
     }
     else
     {
         printf("You are not connected to any group.\n");
-        return -100;
+        return -1;
     }
 }
 
@@ -197,10 +212,10 @@ int delete_value(char *key)
     if (sizeof(key) < 0) //ainda a definir
     {
         printf("Size of group and secret must be below 512 bytes.\n");
-        return -5;
+        return -11;
     }
 
-    if (1 == 1) //verificar que a socket esta ligada ao server
+    if (hooked == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "DEL_";
         int size_key = strlen(key);
@@ -215,22 +230,31 @@ int delete_value(char *key)
             exit(-1);
         }
 
-        //switch case para os erros
         if (flag == 1)
         {
-            printf("ok\n");
-            return 0;
+            printf("Key entry %s has been deleted\n", key);
+            return flag;
+        }
+        else if (flag == -2)
+        {
+            printf("Key not found\n");
+            return flag;
+        }
+        else if (flag == -3)
+        {
+            printf("Delete failed\n");
+            return flag;
         }
         else
         {
-            printf("Del failed\n");
-            return -1;
+            printf("Del: Unknown flag\n");
+            return -6;
         }
     }
     else
     {
         printf("You are not connected to any group.\n");
-        return -100;
+        return -1;
     }
 }
 
@@ -242,37 +266,37 @@ int register_callback(char *key, void (*callback_function)(char *))
     char *plug_addr;
     struct sockaddr_un callback_addr_server, callback_addr_client;
 
-    callback_addr_client.sun_family = AF_UNIX;
-    plug_addr = (char *)malloc((strlen(client_addr) + strlen(key) + 1) * sizeof(char));
-
-    strcpy(plug_addr, client_addr);
-    strcat(plug_addr, key);
-    strcpy(callback_addr_client.sun_path, plug_addr);
-    free(plug_addr);
-
-    plug = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (plug == -1)
+    if (hooked == 1) //verificar que a socket esta ligada ao server
     {
-        exit(-1);
-    }
 
-    if (bind(plug, (struct sockaddr *)&callback_addr_client, sizeof(callback_addr_client)) == -1)
-    {
-        printf("Socket for key %s already created\n", key);
-        return -69;
-    }
+        callback_addr_client.sun_family = AF_UNIX;
+        plug_addr = (char *)malloc((strlen(client_addr) + strlen(key) + 1) * sizeof(char));
 
-    strcpy(callback_addr_server.sun_path, CALLBACK_SOCKET_ADDR);
-    callback_addr_server.sun_family = AF_UNIX;
+        strcpy(plug_addr, client_addr);
+        strcat(plug_addr, key);
+        strcpy(callback_addr_client.sun_path, plug_addr);
+        free(plug_addr);
 
-    if (1 == 1) //verificar que a socket esta ligada ao server
-    {
+        plug = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (plug == -1)
+        {
+            exit(-1);
+        }
+
+        if (bind(plug, (struct sockaddr *)&callback_addr_client, sizeof(callback_addr_client)) == -1)
+        {
+            printf("CallbackSocket for key %s already created\n", key);
+            return -69;
+        }
+
+        strcpy(callback_addr_server.sun_path, CALLBACK_SOCKET_ADDR);
+        callback_addr_server.sun_family = AF_UNIX;
+
         if (fork() != 0)
         {
             int err_c = connect(plug, (struct sockaddr *)&callback_addr_server, sizeof(callback_addr_server));
             if (err_c == -1)
             {
-                printf("BS2\n");
                 perror("connect");
                 exit(-1);
             }
@@ -284,7 +308,6 @@ int register_callback(char *key, void (*callback_function)(char *))
                     perror("recieve");
                     exit(-1);
                 }
-                //printf("%s|A flag do pai: %d\n", key, trigger);
 
                 if (trigger == 100)
                 {
@@ -313,30 +336,39 @@ int register_callback(char *key, void (*callback_function)(char *))
                 exit(-1);
             }
 
-            //switch case para os erros
             if (flag == 1)
             {
-                printf("Callback function has been mounted\n");
-                return 0;
+                printf("Callback function for %s has been mounted\n", key);
+                return flag;
+            }
+            else if (flag == -2)
+            {
+                printf("Key not found\n");
+                return flag;
+            }
+            else if (flag == -10)
+            {
+                printf("Couldn´t save the callback socket\n");
+                return flag;
             }
             else
             {
-                printf("Callback failed\n");
-                return -1;
+                printf("Rcl: Unknown flag\n");
+                return -6;
             }
         }
     }
     else
     {
         printf("You are not connected to any group.\n");
-        return -100;
+        return -1;
     }
 }
 
 int close_connection()
 {
     int flag;
-    if (1 == 1) //verificar que a socket esta ligada ao server
+    if (hooked == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "CLS_";
         write(send_socket, &command, sizeof(command));
@@ -351,18 +383,19 @@ int close_connection()
         if (flag == 1)
         {
             printf("Connection closed\n");
+            hooked = 0;
             remove(client_addr);
-            return 0;
+            return flag;
         }
         else
         {
             printf("Close failed\n");
-            return -1;
+            return -6;
         }
     }
     else
     {
         printf("You are not connected to any group.\n");
-        return -100;
+        return -1;
     }
 }

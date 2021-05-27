@@ -230,9 +230,6 @@ void *client_interaction(void *args)
                 exit(-1);
             }
             printf("EST:Recebi %s e %s\n", field1, field2);
-            /*
-            mandar datagram para o auth server
-            */
 
             other_sock_addr.sin_family = AF_INET;
             inet_aton(AUTH_SOCKET_ADDR, &other_sock_addr.sin_addr);
@@ -283,7 +280,7 @@ void *client_interaction(void *args)
             {
                 if (hooked == 1)
                 {
-                    error_flag = -5;
+                    error_flag = -4;
                 }
                 else
                 {
@@ -321,54 +318,62 @@ void *client_interaction(void *args)
                 exit(-1);
             }
             printf("PUT:Recebi %s e %s\n", field1, value);
-
-            if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
+            if (hooked == 1)
             {
-                perror("Lock Put write lock failed");
-            }
-            if (group != NULL && insert(group->group_table, field1, value, HASHSIZE) != NULL)
-            {
-                if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
-                {
-                    perror("Unlock Put write lock failed");
-                }
-
-                if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
+                if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
                 {
                     perror("Lock Put write lock failed");
                 }
-                buffer = lookup(group->group_table, field1, HASHSIZE);
-                if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                if (group != NULL && (buffer = insert(group->group_table, field1, value, HASHSIZE)) != NULL)
                 {
-                    perror("Unlock Put write lock failed");
-                }
+                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                    {
+                        perror("Unlock Put write lock failed");
+                    }
 
-                callbacks *caux = buffer->head;
-                connection_flag = 100;
-                while (caux != NULL)
+                    /*if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
+                    {
+                        perror("Lock Put write lock failed");
+                    }
+                    buffer = lookup(group->group_table, field1, HASHSIZE);
+                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                    {
+                        perror("Unlock Put write lock failed");
+                    }*/
+
+                    callbacks *caux = buffer->head;
+                    connection_flag = 100;
+                    while (caux != NULL)
+                    {
+                        write(caux->callback_socket, &connection_flag, sizeof(connection_flag));
+                        caux = caux->next;
+                    }
+
+                    connection_flag = 1;
+                    write(client_fd, &connection_flag, sizeof(connection_flag));
+                }
+                else //cuidado com else que o insert pode ser NULL
                 {
-                    write(caux->callback_socket, &connection_flag, sizeof(connection_flag));
-                    caux = caux->next;
-                }
+                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                    {
+                        perror("Unlock Put write lock failed");
+                    }
 
-                connection_flag = 1;
-                write(client_fd, &connection_flag, sizeof(connection_flag));
+                    error_flag = -3;
+                    write(client_fd, &error_flag, sizeof(error_flag));
+                }
                 free(value);
             }
-            else //cuidado com else else que o insert pode ser NULL
+            else
             {
-                if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
-                {
-                    perror("Unlock Put write lock failed");
-                }
-
                 printf("You haven´t established a connection to a group yet.\n");
                 error_flag = -1;
-                //guardar tempo de saida
+                group->active_users--;
                 write(client_fd, &error_flag, sizeof(error_flag));
                 free(value);
                 pthread_exit(NULL);
             }
+
             break;
         case 2: //get_value
             err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
@@ -385,33 +390,47 @@ void *client_interaction(void *args)
             }
 
             printf("GET:Recebi %s\n", field1);
-
-            if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
+            if (hooked == 1)
             {
-                perror("Lock GET write lock failed");
-            }
+                if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
+                {
+                    perror("Lock GET write lock failed");
+                }
 
-            buffer = lookup(group->group_table, field1, HASHSIZE);
-
-            if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
-            {
-                perror("Unlock GET write lock failed");
-            }
-
-            if (group != NULL && buffer != NULL)
-            {
-                connection_flag = 1;
-                write(client_fd, &connection_flag, sizeof(connection_flag));
-                int size_buffer = strlen(buffer->value);
-                printf("Size %d e '%s'\n", size_buffer, buffer->value);
-                write(client_fd, &size_buffer, sizeof(size_buffer));
-                write(client_fd, buffer->value, strlen(buffer->value));
+                if (group != NULL && (buffer = lookup(group->group_table, field1, HASHSIZE)) != NULL)
+                {
+                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                    {
+                        perror("Unlock GET write lock failed");
+                    }
+                    connection_flag = 1;
+                    write(client_fd, &connection_flag, sizeof(connection_flag));
+                    int size_buffer = strlen(buffer->value);
+                    printf("Size %d e '%s'\n", size_buffer, buffer->value);
+                    write(client_fd, &size_buffer, sizeof(size_buffer));
+                    write(client_fd, buffer->value, strlen(buffer->value));
+                }
+                else
+                {
+                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                    {
+                        perror("Unlock GET write lock failed");
+                    }
+                    error_flag = -2;
+                    write(client_fd, &error_flag, sizeof(error_flag));
+                }
             }
             else
             {
+                printf("You haven´t established a connection to a group yet.\n");
                 error_flag = -1;
+                group->active_users--;
+
                 write(client_fd, &error_flag, sizeof(error_flag));
+                free(value);
+                pthread_exit(NULL);
             }
+
             break;
         case 3: //delete_value
             err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
@@ -428,48 +447,21 @@ void *client_interaction(void *args)
             }
 
             printf("DEL:Recebi %s\n", field1);
-
-            if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
+            if (hooked == 1)
             {
-                perror("Lock DEL write lock failed");
-            }
-
-            if (group != NULL && (buffer = lookup(group->group_table, field1, HASHSIZE)) == NULL) //verificar com o auth server
-            {
-                if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
-                {
-                    perror("Unlock DEL write lock failed");
-                }
-
-                error_flag = -1;
-                write(client_fd, &error_flag, sizeof(error_flag));
-            }
-            else
-            {
-                if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
-                {
-                    perror("Unlock DEL write lock failed");
-                }
-
-                callbacks *caux = buffer->head;
-                connection_flag = -5;
-                while (caux != NULL)
-                {
-                    write(caux->callback_socket, &connection_flag, sizeof(connection_flag));
-                    caux = caux->next;
-                }
-
-                if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
+                if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
                 {
                     perror("Lock DEL write lock failed");
                 }
-                if (delete_hash(group->group_table, field1, HASHSIZE) == -1)
+
+                if (group != NULL && (buffer = lookup(group->group_table, field1, HASHSIZE)) == NULL) //verificar com o auth server
                 {
                     if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
                     {
                         perror("Unlock DEL write lock failed");
                     }
-                    error_flag = -3;
+
+                    error_flag = -2;
                     write(client_fd, &error_flag, sizeof(error_flag));
                 }
                 else
@@ -478,10 +470,50 @@ void *client_interaction(void *args)
                     {
                         perror("Unlock DEL write lock failed");
                     }
-                    connection_flag = 1;
-                    write(client_fd, &connection_flag, sizeof(connection_flag));
+
+                    callbacks *caux = buffer->head;
+                    connection_flag = -5;
+                    while (caux != NULL)
+                    {
+                        write(caux->callback_socket, &connection_flag, sizeof(connection_flag));
+                        caux = caux->next;
+                    }
+
+                    if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
+                    {
+                        perror("Lock DEL write lock failed");
+                    }
+                    if (delete_hash(group->group_table, field1, HASHSIZE) == -1)
+                    {
+                        if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                        {
+                            perror("Unlock DEL write lock failed");
+                        }
+                        error_flag = -3;
+                        write(client_fd, &error_flag, sizeof(error_flag));
+                    }
+                    else
+                    {
+                        if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                        {
+                            perror("Unlock DEL write lock failed");
+                        }
+                        connection_flag = 1;
+                        write(client_fd, &connection_flag, sizeof(connection_flag));
+                    }
                 }
             }
+            else
+            {
+                printf("You haven´t established a connection to a group yet.\n");
+                error_flag = -1;
+                group->active_users--;
+
+                write(client_fd, &error_flag, sizeof(error_flag));
+                free(value);
+                pthread_exit(NULL);
+            }
+
             break;
         case 4: //register_callback
             err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
@@ -498,50 +530,59 @@ void *client_interaction(void *args)
             }
 
             printf("RCL:Recebi %s\n", field1);
-            /*
-            Associar uma callback function à key
-            */
-            if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
+            if (hooked == 1)
             {
-                perror("Lock DEL write lock failed");
-            }
-            buffer = lookup(group->group_table, field1, HASHSIZE);
-            if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
-            {
-                perror("Unlock DEL write lock failed");
-            }
-            if (group != NULL && buffer != NULL)
-            {
-                int callback_size = sizeof(client_callback_addr);
-                int callback_fd = accept(callback_socket, (struct sockaddr *)&client_callback_addr, &callback_size);
-                if (callback_fd == -1)
+                if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
                 {
-                    perror("accept");
-                    exit(-1);
+                    perror("Lock DEL write lock failed");
                 }
 
-                if (insert_callsocket(buffer, callback_fd) == 0)
+                if (group != NULL && (buffer = lookup(group->group_table, field1, HASHSIZE)) != NULL)
                 {
-                    printf("VOLTA %d\n", buffer->head->callback_socket);
-                    connection_flag = 1;
-                    write(client_fd, &connection_flag, sizeof(connection_flag));
+                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                    {
+                        perror("Unlock DEL write lock failed");
+                    }
+
+                    int callback_size = sizeof(client_callback_addr);
+                    int callback_fd = accept(callback_socket, (struct sockaddr *)&client_callback_addr, &callback_size);
+                    if (callback_fd == -1)
+                    {
+                        perror("accept");
+                        exit(-1);
+                    }
+
+                    if (insert_callsocket(buffer, callback_fd) == 0)
+                    {
+                        connection_flag = 1;
+                        write(client_fd, &connection_flag, sizeof(connection_flag));
+                    }
+                    else
+                    {
+                        error_flag = -10;
+                        write(client_fd, &error_flag, sizeof(error_flag));
+                    }
                 }
                 else
                 {
-                    error_flag = -7;
+                    error_flag = -2;
                     write(client_fd, &error_flag, sizeof(error_flag));
                 }
             }
             else
             {
+                printf("You haven´t established a connection to a group yet.\n");
                 error_flag = -1;
+                group->active_users--;
                 write(client_fd, &error_flag, sizeof(error_flag));
+                free(value);
+                pthread_exit(NULL);
             }
-            printf("Confirma %d\n", buffer->head->callback_socket);
+
             break;
         case 5: //close_connection
-            hooked = 0;
             printf("Closing connection with client\n");
+            hooked = 0;
             group->active_users--;
             connection_flag = 1;
             write(client_fd, &connection_flag, sizeof(connection_flag));
@@ -550,7 +591,9 @@ void *client_interaction(void *args)
             break;
         default:
             printf("Command not found. Connection with client %d dropped\n", 1);
-            error_flag = -100;
+            hooked = 0;
+            group->active_users--;
+            error_flag = -404;
             //guardar tempo de saida
             write(client_fd, &error_flag, sizeof(error_flag));
             pthread_exit(NULL);
