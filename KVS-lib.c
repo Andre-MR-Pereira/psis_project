@@ -49,6 +49,7 @@ int establish_connection(char *group_id, char *secret)
     if (err_c == -1)
     {
         perror("connect");
+        remove(client_addr);
         exit(-1);
     }
     char command[5] = "EST_";
@@ -238,13 +239,16 @@ int register_callback(char *key, void (*callback_function)(char *))
     int flag, err_rcv, trigger;
     char *buffer;
     int plug;
-    /*char plug_addr[30] = "2";
-    struct sockaddr_un server_socket_addr, socket_addr_client;
+    char *plug_addr;
+    struct sockaddr_un callback_addr_server, callback_addr_client;
 
-    socket_addr_client.sun_family = AF_UNIX;
-    strcat(plug_addr, client_addr);
-    printf("%s\n", plug_addr);
-    strcpy(socket_addr_client.sun_path, client_addr);
+    callback_addr_client.sun_family = AF_UNIX;
+    plug_addr = (char *)malloc((strlen(client_addr) + strlen(key) + 1) * sizeof(char));
+
+    strcpy(plug_addr, client_addr);
+    strcat(plug_addr, key);
+    strcpy(callback_addr_client.sun_path, plug_addr);
+    free(plug_addr);
 
     plug = socket(AF_UNIX, SOCK_STREAM, 0);
     if (plug == -1)
@@ -252,43 +256,49 @@ int register_callback(char *key, void (*callback_function)(char *))
         exit(-1);
     }
 
-    if (bind(plug, (struct sockaddr *)&socket_addr_client, sizeof(socket_addr_client)) == -1)
+    if (bind(plug, (struct sockaddr *)&callback_addr_client, sizeof(callback_addr_client)) == -1)
     {
         printf("Socket for key %s already created\n", key);
-        exit(-1);
+        return -69;
     }
 
-    strcpy(server_socket_addr.sun_path, SERVER_SOCKET_ADDR);
-    server_socket_addr.sun_family = AF_UNIX;
+    strcpy(callback_addr_server.sun_path, CALLBACK_SOCKET_ADDR);
+    callback_addr_server.sun_family = AF_UNIX;
 
-    int err_c = connect(plug, (struct sockaddr *)&server_socket_addr, sizeof(server_socket_addr));
-    if (err_c == -1)
-    {
-        perror("connect");
-        exit(-1);
-    }*/
     if (1 == 1) //verificar que a socket esta ligada ao server
     {
-        /*if (fork() != 0)
+        if (fork() != 0)
         {
-            while(1){
-                err_rcv = recv(send_socket, &trigger, sizeof(trigger), 0);
+            int err_c = connect(plug, (struct sockaddr *)&callback_addr_server, sizeof(callback_addr_server));
+            if (err_c == -1)
+            {
+                printf("BS2\n");
+                perror("connect");
+                exit(-1);
+            }
+            while (1)
+            {
+                err_rcv = recv(plug, &trigger, sizeof(trigger), 0);
                 if (err_rcv == -1)
                 {
                     perror("recieve");
                     exit(-1);
                 }
-                printf("A flag do pai: %d\n", trigger);
+                //printf("%s|A flag do pai: %d\n", key, trigger);
 
                 if (trigger == 100)
                 {
-                    printf("WHAT");
-                    //(*callback_function)(buffer);
+                    callback_function(key);
+                }
+                else if (trigger == -5)
+                {
+                    printf("Closing %s callback pipe\n", key);
+                    remove(callback_addr_client.sun_path);
+                    exit(EXIT_SUCCESS);
                 }
             }
-            
-        }*/
-        /*else
+        }
+        else
         {
             char command[5] = "RCL_";
             int size_key = strlen(key);
@@ -302,7 +312,6 @@ int register_callback(char *key, void (*callback_function)(char *))
                 perror("recieve");
                 exit(-1);
             }
-            printf("A flag do filho: %d\n", flag);
 
             //switch case para os erros
             if (flag == 1)
@@ -315,7 +324,7 @@ int register_callback(char *key, void (*callback_function)(char *))
                 printf("Callback failed\n");
                 return -1;
             }
-        }*/
+        }
     }
     else
     {
@@ -338,7 +347,6 @@ int close_connection()
             perror("recieve");
             exit(-1);
         }
-        printf("A flag do close %d\n", flag);
 
         if (flag == 1)
         {

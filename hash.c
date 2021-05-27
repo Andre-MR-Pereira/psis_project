@@ -37,6 +37,7 @@ hashtable *insert(hashtable **table, char *key, char *value, int size)
         if (aux == NULL || (aux->key = strdup(key)) == NULL)
             return NULL;
         hashval = hash(key, size);
+        aux->head = NULL;
         aux->next = table[hashval];
         table[hashval] = aux;
     }
@@ -62,6 +63,7 @@ int delete_hash(hashtable **table, char *key, int size)
 {
     int flag_head = 1;
     hashtable *aux, *prev;
+    callbacks *caux, *cprev;
     unsigned hashval;
     if ((aux = lookup(table, key, size)) == NULL)
     { /* not found */
@@ -75,6 +77,13 @@ int delete_hash(hashtable **table, char *key, int size)
             {
                 free(aux->key);
                 free(aux->value);
+                caux = aux->head;
+                while (caux != NULL)
+                {
+                    cprev = caux;
+                    caux = caux->next;
+                    free(cprev);
+                }
                 prev->next = aux->next;
                 free(aux);
                 break;
@@ -84,6 +93,13 @@ int delete_hash(hashtable **table, char *key, int size)
                 prev = aux->next;
                 free(aux->key);
                 free(aux->value);
+                caux = aux->head;
+                while (caux != NULL)
+                {
+                    cprev = caux;
+                    caux = caux->next;
+                    free(cprev);
+                }
                 free(aux);
                 table[hash(key, size)] = prev;
                 break;
@@ -92,5 +108,75 @@ int delete_hash(hashtable **table, char *key, int size)
             flag_head = 0;
         }
         return 0;
+    }
+}
+
+callbacks *list_call(hashtable **table, char *key, int size)
+{
+    hashtable *aux;
+    aux = lookup(table, key, size);
+    if (aux != NULL)
+    {
+        return aux->head;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
+int insert_callsocket(hashtable *group, int socket)
+{
+    callbacks *new, *caux;
+
+    caux = group->head;
+    while (caux != NULL)
+    {
+        if (caux->callback_socket == socket)
+        {
+            return -2;
+        }
+        caux = caux->next;
+    }
+    new = (callbacks *)malloc(sizeof(callbacks));
+    new->callback_socket = socket;
+    if (group->head == NULL)
+    {
+        new->next = NULL;
+    }
+    else
+    {
+        new->next = group->head;
+    }
+    group->head = new;
+    printf("New socket is %d\n", group->head->callback_socket);
+    return 0;
+}
+
+void delete_table(hashtable **table, int size)
+{
+    hashtable *aux, *prev;
+    callbacks *caux, *cprev;
+    for (int i = 0; i < size; i++)
+    {
+        if (table[i] != NULL)
+        {
+            aux = table[i];
+            while (aux != NULL)
+            {
+                prev = aux->next;
+                free(aux->key);
+                free(aux->value);
+                caux = aux->head;
+                while (caux != NULL)
+                {
+                    cprev = caux;
+                    caux = caux->next;
+                    free(cprev);
+                }
+                free(aux);
+                prev = aux;
+            }
+        }
     }
 }

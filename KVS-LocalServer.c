@@ -12,8 +12,9 @@
 #include <arpa/inet.h>
 #include "hash.h"
 
-#define HASHSIZE 1001
+#define HASHSIZE 10001
 #define SERVER_SOCKET_ADDR "/tmp/server_socket"
+#define CALLBACK_SOCKET_ADDR "/tmp/callback_socket"
 #define AUTH_SOCKET_ADDR "192.168.1.73"
 
 pthread_rwlock_t groups_rwlock = PTHREAD_RWLOCK_INITIALIZER;
@@ -32,6 +33,8 @@ typedef struct hash_list
     char *group;
     hashtable **group_table;
     pthread_rwlock_t hash_rwlock;
+    int active_users;
+    int remove_flag;
     struct hash_list *next;
 } hash_list;
 
@@ -42,6 +45,7 @@ int auth_server_fd = 0;
 hash_list *groups = NULL;
 client_list *clients = NULL;
 int send_socket;
+int callback_socket;
 
 int extract_command(char *command)
 {
@@ -136,6 +140,8 @@ void create_new_group(char *group)
     aux = (hash_list *)malloc(sizeof(hash_list));
     aux->group = strdup(group);
     aux->group_table = allocate_table(HASHSIZE);
+    aux->active_users = 0;
+    aux->remove_flag = 0;
     if (pthread_rwlock_init(&(aux->hash_rwlock), NULL) != 0)
     {
         perror("Error creating a hash lock");
@@ -166,6 +172,7 @@ void *client_interaction(void *args)
     int connection_flag, error_flag, n_bytes;
     char command[5], field1[512], field2[512], auth_command[5], *value, auth_buffer[1040];
     struct sockaddr_in other_sock_addr;
+    struct sockaddr_un client_callback_addr;
 
     /*for (int i = 0; i < accepted_connections; i++)
     {
@@ -262,6 +269,7 @@ void *client_interaction(void *args)
                     perror("Lock EST write lock failed");
                 }
                 group = lookup_group(field1);
+                group->active_users++;
                 if (pthread_rwlock_unlock(&groups_rwlock) != 0)
                 {
                     perror("Unlock EST write lock failed");
@@ -323,6 +331,24 @@ void *client_interaction(void *args)
                 if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
                 {
                     perror("Unlock Put write lock failed");
+                }
+
+                if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
+                {
+                    perror("Lock Put write lock failed");
+                }
+                buffer = lookup(group->group_table, field1, HASHSIZE);
+                if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                {
+                    perror("Unlock Put write lock failed");
+                }
+
+                callbacks *caux = buffer->head;
+                connection_flag = 100;
+                while (caux != NULL)
+                {
+                    write(caux->callback_socket, &connection_flag, sizeof(connection_flag));
+                    caux = caux->next;
                 }
 
                 connection_flag = 1;
@@ -403,12 +429,12 @@ void *client_interaction(void *args)
 
             printf("DEL:Recebi %s\n", field1);
 
-            if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
+            if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
             {
                 perror("Lock DEL write lock failed");
             }
 
-            if (group != NULL && delete_hash(group->group_table, field1, HASHSIZE) == -1) //verificar com o auth server
+            if (group != NULL && (buffer = lookup(group->group_table, field1, HASHSIZE)) == NULL) //verificar com o auth server
             {
                 if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
                 {
@@ -425,8 +451,36 @@ void *client_interaction(void *args)
                     perror("Unlock DEL write lock failed");
                 }
 
-                connection_flag = 1;
-                write(client_fd, &connection_flag, sizeof(connection_flag));
+                callbacks *caux = buffer->head;
+                connection_flag = -5;
+                while (caux != NULL)
+                {
+                    write(caux->callback_socket, &connection_flag, sizeof(connection_flag));
+                    caux = caux->next;
+                }
+
+                if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
+                {
+                    perror("Lock DEL write lock failed");
+                }
+                if (delete_hash(group->group_table, field1, HASHSIZE) == -1)
+                {
+                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                    {
+                        perror("Unlock DEL write lock failed");
+                    }
+                    error_flag = -3;
+                    write(client_fd, &error_flag, sizeof(error_flag));
+                }
+                else
+                {
+                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                    {
+                        perror("Unlock DEL write lock failed");
+                    }
+                    connection_flag = 1;
+                    write(client_fd, &connection_flag, sizeof(connection_flag));
+                }
             }
             break;
         case 4: //register_callback
@@ -447,25 +501,48 @@ void *client_interaction(void *args)
             /*
             Associar uma callback function à key
             */
+            if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
+            {
+                perror("Lock DEL write lock failed");
+            }
             buffer = lookup(group->group_table, field1, HASHSIZE);
+            if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+            {
+                perror("Unlock DEL write lock failed");
+            }
             if (group != NULL && buffer != NULL)
             {
-                connection_flag = 1;
-                write(client_fd, &connection_flag, sizeof(connection_flag));
+                int callback_size = sizeof(client_callback_addr);
+                int callback_fd = accept(callback_socket, (struct sockaddr *)&client_callback_addr, &callback_size);
+                if (callback_fd == -1)
+                {
+                    perror("accept");
+                    exit(-1);
+                }
+
+                if (insert_callsocket(buffer, callback_fd) == 0)
+                {
+                    printf("VOLTA %d\n", buffer->head->callback_socket);
+                    connection_flag = 1;
+                    write(client_fd, &connection_flag, sizeof(connection_flag));
+                }
+                else
+                {
+                    error_flag = -7;
+                    write(client_fd, &error_flag, sizeof(error_flag));
+                }
             }
             else
             {
                 error_flag = -1;
                 write(client_fd, &error_flag, sizeof(error_flag));
             }
-
-            connection_flag = 100;
-            write(client_fd, &connection_flag, sizeof(connection_flag));
-
+            printf("Confirma %d\n", buffer->head->callback_socket);
             break;
         case 5: //close_connection
             hooked = 0;
             printf("Closing connection with client\n");
+            group->active_users--;
             connection_flag = 1;
             write(client_fd, &connection_flag, sizeof(connection_flag));
             //guardar tempo de saida
@@ -684,8 +761,10 @@ int main()
     struct sockaddr_un server_socket_addr, client_socket_addr;
     pthread_t t_id[10];
     struct sockaddr_in socket_addr_client;
+    struct sockaddr_un callback_socket_addr;
 
     remove(SERVER_SOCKET_ADDR);
+    remove(CALLBACK_SOCKET_ADDR);
 
     server_socket = socket(AF_UNIX, SOCK_STREAM, 0);
     if (server_socket == -1)
@@ -703,6 +782,27 @@ int main()
     }
 
     if (listen(server_socket, 2) == -1)
+    {
+        perror("listen");
+        exit(-1);
+    }
+
+    callback_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (callback_socket == -1)
+    {
+        exit(-1);
+    }
+
+    callback_socket_addr.sun_family = AF_UNIX;
+    strcpy(callback_socket_addr.sun_path, CALLBACK_SOCKET_ADDR);
+
+    if (bind(callback_socket, (struct sockaddr *)&callback_socket_addr, sizeof(callback_socket_addr)) == -1)
+    {
+        printf("Callback socket already created\n");
+        exit(-1);
+    }
+
+    if (listen(callback_socket, 2) == -1)
     {
         perror("listen");
         exit(-1);
