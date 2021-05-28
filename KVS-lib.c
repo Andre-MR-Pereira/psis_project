@@ -13,7 +13,7 @@
 
 int establish_connection(char *group_id, char *secret)
 {
-    int flag;
+    int flag = 0;
     struct sockaddr_un server_socket_addr, socket_addr_client;
 
     if (sizeof(group_id) > 512 || sizeof(secret) > 512)
@@ -67,7 +67,6 @@ int establish_connection(char *group_id, char *secret)
         perror("recieve");
         exit(-1);
     }
-
     //switch case para os erros
     if (flag == 1)
     {
@@ -75,7 +74,7 @@ int establish_connection(char *group_id, char *secret)
         printf("You established connection with the group %s\n", group_id);
         return flag;
     }
-    else if (flag = -4)
+    else if (flag == -4)
     {
         printf("Establish failed with the group %s,so you will remain connected to your previous group\n", group_id);
         return flag;
@@ -90,7 +89,7 @@ int establish_connection(char *group_id, char *secret)
 
 int put_value(char *key, char *value)
 {
-    int flag;
+    int flag = 0;
 
     if (sizeof(key) < 0) //ainda a definir
     {
@@ -142,7 +141,7 @@ int put_value(char *key, char *value)
 
 int get_value(char *key, char **value)
 {
-    int flag, size_buffer;
+    int flag = 0, size_buffer;
 
     if (sizeof(key) < 0) //ainda a definir
     {
@@ -206,7 +205,7 @@ int get_value(char *key, char **value)
 
 int delete_value(char *key)
 {
-    int flag, size_buffer;
+    int flag = 0, size_buffer;
     char *buffer;
 
     if (sizeof(key) < 0) //ainda a definir
@@ -260,7 +259,7 @@ int delete_value(char *key)
 
 int register_callback(char *key, void (*callback_function)(char *))
 {
-    int flag, err_rcv, trigger;
+    int flag = 0, err_rcv, trigger;
     char *buffer;
     int plug;
     char *plug_addr;
@@ -307,6 +306,12 @@ int register_callback(char *key, void (*callback_function)(char *))
                 {
                     perror("recieve");
                     exit(-1);
+                }
+                else if (err_rcv == 0)
+                {
+                    printf("Closing %s callback pipe (Local went down)\n", key);
+                    remove(callback_addr_client.sun_path);
+                    exit(EXIT_SUCCESS);
                 }
 
                 if (trigger == 100)
@@ -367,7 +372,7 @@ int register_callback(char *key, void (*callback_function)(char *))
 
 int close_connection()
 {
-    int flag;
+    int flag = 0;
     if (hooked == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "CLS_";

@@ -149,7 +149,6 @@ int insert_callsocket(hashtable *group, int socket)
         new->next = group->head;
     }
     group->head = new;
-    printf("New socket is %d\n", group->head->callback_socket);
     return 0;
 }
 

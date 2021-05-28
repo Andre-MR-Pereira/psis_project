@@ -38,7 +38,7 @@ typedef struct hash_list
     struct hash_list *next;
 } hash_list;
 
-int client_fd_vector[10];
+int client_fd_vector[1000];
 int accepted_connections = 0;
 int auth_server_fd = 0;
 //client_list *head_connections[10];
@@ -266,11 +266,11 @@ void *client_interaction(void *args)
                     perror("Lock EST write lock failed");
                 }
                 group = lookup_group(field1);
-                group->active_users++;
                 if (pthread_rwlock_unlock(&groups_rwlock) != 0)
                 {
                     perror("Unlock EST write lock failed");
                 }
+                group->active_users++;
                 show_groups();
                 connection_flag = 1;
                 hooked = 1;
@@ -590,7 +590,7 @@ void *client_interaction(void *args)
             pthread_exit(NULL);
             break;
         default:
-            printf("Command not found. Connection with client %d dropped\n", 1);
+            printf("Command not found. Connection with client %d dropped\n", client_fd);
             hooked = 0;
             group->active_users--;
             error_flag = -404;
@@ -802,7 +802,8 @@ int main()
 {
     int server_socket, buffer;
     struct sockaddr_un server_socket_addr, client_socket_addr;
-    pthread_t t_id[10];
+    pthread_t t_id[1000];
+    pthread_t admin;
     struct sockaddr_in socket_addr_client;
     struct sockaddr_un callback_socket_addr;
 
@@ -871,11 +872,10 @@ int main()
     int client_size = sizeof(client_socket_addr);
     char buf[20];
 
-    if (pthread_create(&t_id[i], NULL, user_interface, NULL) != 0)
+    if (pthread_create(&admin, NULL, user_interface, NULL) != 0)
     {
         printf("Error on thread creation");
     }
-    i++;
 
     while (1)
     {
