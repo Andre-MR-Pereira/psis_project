@@ -47,6 +47,37 @@ int extract_command(char *packet, char *field1, char *field2)
     return -1;
 }
 
+void assemble_payload(char *buffer, char *command, char *field1, char *field2 , int n_fields)
+{
+    strcpy(buffer, "");
+    strcat(buffer, command);
+    if (field1 != NULL)
+    {
+        strcat(buffer, field1);
+        strcat(buffer, "_");
+    }
+    if(n_fields==2){
+        if (field2 != NULL)
+        {
+            strcat(buffer, field2);
+            strcat(buffer, "_");
+        }
+    }
+}
+
+char * generate_secret(){
+
+    char* secret = malloc(512*sizeof(char));
+    if(secret == NULL){
+        printf("erro a allocar segredo\n");
+        //damos exit??  ou perror
+    }
+    //código random de geração do segredo
+    strcpy(secret,"12345");
+
+    return secret;
+}
+
 int main()
 {
     int server_socket, n_bytes, flag;
@@ -54,7 +85,7 @@ int main()
     struct sockaddr_in sender_sock_addr;
     socklen_t size_sender_addr;
     int sender_sock_addr_size = sizeof(sender_sock_addr);
-    char command[5], field1[512], field2[512], buffer[1040];
+    char command[5], field1[512], field2[512], buffer[1040], send_buffer[1040];
     int size_field1, size_field2;
     hashtable *group;
     hashtable **vault;
@@ -100,16 +131,24 @@ int main()
             //n_bytes = recvfrom(server_socket, field2, sizeof(field2), 0,
             //                   (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
             printf("%s e %s do Local\n", field1, field2);
-            //group = insert(vault, field1, secret, HASHSIZE);
+            
+            //generate secret
+            strcpy(field1,generate_secret());
+
             group = insert(vault, field1, field2, HASHSIZE);
 
             if (group == NULL) //the group already exists
             {
                 flag = -4; //confirmar que este não é usado em mais lado nenhum, significa que o grupo já existe
             }
+            else
+            {
+                //we only need to send the flag and the secret
+                assemble_payload(send_buffer,flag,field1,NULL,1);
+            }
 
             //enviar apenas 1 buffer com a flag e o secret em caso de sucesso
-            sendto(server_socket, &flag, sizeof(flag), 0,
+            sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
         case 1: //delete

@@ -77,19 +77,21 @@ int extract_command(char *command)
     return -1;
 }
 
-void assemble_payload(char *buffer, char *command, char *field1, char *field2)
+void assemble_payload(char *buffer, char *command, char *field1, char *field2 , int n_fields)
 {
     strcpy(buffer, "");
     strcat(buffer, command);
     if (field1 != NULL)
     {
         strcat(buffer, field1);
-        strcat(buffer, "_");
+        strcat(buffer, "\0");
     }
-    if (field2 != NULL)
-    {
-        strcat(buffer, field2);
-        strcat(buffer, "_");
+    if(n_fields==2){
+        if (field2 != NULL)
+        {
+            strcat(buffer, field2);
+            strcat(buffer, "\0");
+        }
     }
 }
 
@@ -157,8 +159,9 @@ void create_new_group(char *group)
     groups = aux;
 }
 
-void lookup_and_delete(char *group)
+void delete_group(char *group)
 {
+
 }
 
 void *client_interaction(void *args)
@@ -236,7 +239,7 @@ void *client_interaction(void *args)
             other_sock_addr.sin_port = htons(3001);
 
             strcpy(auth_command, "CRE_");
-            assemble_payload(auth_buffer, auth_command, field1, field2);
+            assemble_payload(auth_buffer, auth_command, field1, field2,2);
 
             sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
@@ -247,7 +250,7 @@ void *client_interaction(void *args)
             cleanBuffer(auth_buffer); //só para não ficar tudo bugado, limpa-se o buffer antes de mandar mais cenas
 
             strcpy(auth_command, "CMP_");
-            assemble_payload(auth_buffer, auth_command, field1, field2);
+            assemble_payload(auth_buffer, auth_command, field1, field2,2);
             sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
@@ -605,9 +608,10 @@ int UserInput()
 {
 
     char option[10] = "\0", input[100] = "\0", group_name[20] = "\n", secret[20] = "\n";
-    char field1[512], field2[512], auth_command[5], auth_buffer[1040];
+    char field1[512], field2[512], auth_command[5], auth_buffer[1040], auth_rcv_buffer[1040];
     int connection_flag, n_bytes, n_pairs_kv; //n_pairs_kv = number of key-value pairs
     struct sockaddr_un other_sock_addr;
+    char *token;
 
     //falta o bind?  pq o auth server vai ter de lhe responder com o secret
     int other_sock_addr_size = sizeof(other_sock_addr);
@@ -623,7 +627,7 @@ int UserInput()
     if (!sscanf(input, " %s", option))
         return 1;
 
-    if (strcmp(option, "new") == 0)
+    if (strcmp(option, "create") == 0)
     {
 
         if (sscanf(input, " %s %s", option, group_name) == 2)
@@ -632,17 +636,8 @@ int UserInput()
             //(basta verificar no AuthServer)
 
             strcpy(auth_command, "CRE_");
-            /*//enviar apenas num sendto tudo?
-            sendto(send_socket, &auth_command, sizeof(auth_command), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-            sendto(send_socket, group_name, strlen(field1), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
-            n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
-                               NULL, NULL);
-            printf("A connection flag foi %d\n", connection_flag);
-            */
-            assemble_payload(auth_buffer, auth_command, field1, field2);
+            assemble_payload(auth_buffer, auth_command, field1, field2, 1);
             sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
@@ -652,16 +647,26 @@ int UserInput()
             cleanBuffer(auth_buffer);
 
             //temos que fazer strok e analisar 1º a flag
+            token = strtok(auth_buffer, "_");
+            connection_flag=atoi(token);
+
             //e se for 1 então foi sucesso e tira-se o secret
             if (connection_flag == -4)
             {
                 printf("The group already exists\n");
             }
-            else
+            else if(connection_flag==1)
             {
-                //printf("The secret of group %s is %s\n", group_name, secret);
+               
+                strcpy(secret,strtok(token, "_"));
                 //se o grupo ainda não existir no AuthServer, então cria-se o grupo no LocalServer
                 create_new_group(group_name);
+                printf("The secret of group %s is %s\n", group_name, secret);
+            }
+            else
+            {
+                //Verificar se alguma vez entra aqui 
+                printf("Something went wrong creating the group in the authserver\n");
             }
 
             return 0;
@@ -684,11 +689,13 @@ int UserInput()
             {
                 //enviar msg ao AuthServer a avisar para apagar lá o grupo e segredo
                 strcpy(auth_command, "DEL_");
-                //enviar apenas num sendto tudo?
+                assemble_payload(auth_buffer,auth_command,group_name,NULL,1);
+
+                /*strcpy(auth_command, "DEL_");
                 sendto(send_socket, &auth_command, sizeof(auth_command), 0,
                        (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
                 sendto(send_socket, group_name, strlen(field1), 0,
-                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));*/
 
                 n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
                                    NULL, NULL);
@@ -871,6 +878,7 @@ int main()
     int client_size = sizeof(client_socket_addr);
     char buf[20];
 
+    //não usar um vetor de threads mas sim uma lista!
     if (pthread_create(&t_id[i], NULL, user_interface, NULL) != 0)
     {
         printf("Error on thread creation");
