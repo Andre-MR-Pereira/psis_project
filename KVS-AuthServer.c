@@ -7,8 +7,10 @@
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #define HASHSIZE 10001
+pthread_rwlock_t groups_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 int extract_command(char *packet, char *field1, char *field2)
 {
@@ -47,16 +49,20 @@ int extract_command(char *packet, char *field1, char *field2)
     return -1;
 }
 
-void assemble_payload(char *buffer, char *command, char *field1, char *field2 , int n_fields)
+void assemble_payload(char *buffer, int flag, char *field1, char *field2, int n_fields)
 {
+    char flagstr[2];
+    sprintf(flagstr, "%d", flag);
     strcpy(buffer, "");
-    strcat(buffer, command);
+    strcat(buffer, flagstr);
+    strcat(buffer, "_");
     if (field1 != NULL)
     {
         strcat(buffer, field1);
         strcat(buffer, "_");
     }
-    if(n_fields==2){
+    if (n_fields == 2)
+    {
         if (field2 != NULL)
         {
             strcat(buffer, field2);
@@ -65,15 +71,17 @@ void assemble_payload(char *buffer, char *command, char *field1, char *field2 , 
     }
 }
 
-char * generate_secret(){
+char *generate_secret()
+{
 
-    char* secret = malloc(512*sizeof(char));
-    if(secret == NULL){
+    char *secret = malloc(512 * sizeof(char));
+    if (secret == NULL)
+    {
         printf("erro a allocar segredo\n");
         //damos exit??  ou perror
     }
     //código random de geração do segredo
-    strcpy(secret,"12345");
+    strcpy(secret, "12345");
 
     return secret;
 }
@@ -116,35 +124,35 @@ int main()
         n_bytes = recvfrom(server_socket, &buffer, sizeof(buffer), 0,
                            (struct sockaddr *)&sender_sock_addr, &size_sender_addr);
 
-        //printf("received %d byte (string %s) from %d\n", n_bytes, buffer, sender_sock_addr.sin_addr.s_addr);
-
         switch (extract_command(buffer, field1, field2))
         {
         case 0: //create
             flag = 1;
 
-            //n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
-            //                   (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
-            //gerar aqui o secret
-            //n_bytes = recvfrom(server_socket, field2, sizeof(field2), 0,
-            //                   (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
-            //n_bytes = recvfrom(server_socket, field2, sizeof(field2), 0,
-            //                   (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
             printf("%s e %s do Local\n", field1, field2);
-            
+
             //generate secret
-            strcpy(field1,generate_secret());
+            strcpy(field2, generate_secret());
 
-            group = insert(vault, field1, field2, HASHSIZE);
-
-            if (group == NULL) //the group already exists
+            if (pthread_rwlock_wrlock(&groups_rwlock) != 0)
             {
-                flag = -4; //confirmar que este não é usado em mais lado nenhum, significa que o grupo já existe
+                perror("Lock Put write lock failed");
+            }
+            group = insert(vault, field1, field2, HASHSIZE);
+            if (pthread_rwlock_unlock(&groups_rwlock) != 0)
+            {
+                perror("Unlock Put write lock failed");
+            }
+
+            if (group == NULL) //the group couldn´t be created
+            {
+                flag = -3;
+                assemble_payload(send_buffer, flag, NULL, NULL, 0);
             }
             else
             {
                 //we only need to send the flag and the secret
-                assemble_payload(send_buffer,flag,field1,NULL,1);
+                assemble_payload(send_buffer, flag, field1, field2, 2);
             }
 
             //enviar apenas 1 buffer com a flag e o secret em caso de sucesso
@@ -153,42 +161,89 @@ int main()
             break;
         case 1: //delete
             flag = 1;
-            /*n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);*/
+
+            if (pthread_rwlock_wrlock(&groups_rwlock) != 0)
+            {
+                perror("Lock Put write lock failed");
+            }
             if (delete_hash(vault, field1, HASHSIZE) == -1)
             {
                 printf("Hash deletion failed\n");
                 flag = -3;
             }
-            sendto(server_socket, &flag, sizeof(flag), 0,
+            if (pthread_rwlock_unlock(&groups_rwlock) != 0)
+            {
+                perror("Unlock Put write lock failed");
+            }
+
+            assemble_payload(send_buffer, flag, NULL, NULL, 0);
+
+            sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
         case 2: //compare
-            /*n_bytes = recvfrom(server_socket, field1, sizeof(field1), 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);
 
-            n_bytes = recvfrom(server_socket, field2, sizeof(field2), 0,
-                               (struct sockaddr *)&sender_sock_addr, &sender_sock_addr_size);*/
+            if (pthread_rwlock_rdlock(&groups_rwlock) != 0)
+            {
+                perror("Lock Put write lock failed");
+            }
             group = lookup(vault, field1, HASHSIZE);
-            if (strcmp(group->value, field2) == 0) //correto
+            if (pthread_rwlock_unlock(&groups_rwlock) != 0)
+            {
+                perror("Unlock Put write lock failed");
+            }
+
+            if (group != NULL && strcmp(group->value, field2) == 0) //correto
             {
                 flag = 1;
                 printf("Checks out\n");
+                assemble_payload(send_buffer, flag, field1, field2, 2);
+            }
+            else if (group == NULL)
+            {
+                flag = -2;
+                printf("Group not found\n");
+                assemble_payload(send_buffer, flag, NULL, NULL, 2);
             }
             else
             {
-                flag = -1;
+                flag = -3;
                 printf("Combination was off\n");
+                assemble_payload(send_buffer, flag, NULL, NULL, 2);
             }
-            sendto(server_socket, &flag, sizeof(flag), 0,
+            sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
         case 3: //ask for the secret of a certain group
 
+            if (pthread_rwlock_rdlock(&groups_rwlock) != 0)
+            {
+                perror("Lock Put write lock failed");
+            }
+            group = lookup(vault, field1, HASHSIZE);
+            if (pthread_rwlock_unlock(&groups_rwlock) != 0)
+            {
+                perror("Unlock Put write lock failed");
+            }
+
+            if (group != NULL) //correto
+            {
+                flag = 1;
+                printf("Sending secret\n");
+                assemble_payload(send_buffer, flag, field1, group->value, 2);
+            }
+            else
+            {
+                flag = -2;
+                printf("Group not found\n");
+                assemble_payload(send_buffer, flag, NULL, NULL, 2);
+            }
+            sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
+                   (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
         default:
             printf("Command not found.\n");
-            flag = -2;
+            flag = -404;
             sendto(server_socket, &flag, sizeof(flag), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
         }

@@ -12,6 +12,7 @@
         "initializer_list": "c",
         "utility": "c",
         "system_error": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "sstream": "c"
     }
 }

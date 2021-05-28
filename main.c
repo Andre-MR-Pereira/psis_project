@@ -84,7 +84,7 @@ int main()
         printf("%s|%s\n", aux->key, aux->value);
     }
 
-    for (int i = 0; i < 100; i++)
+    for (int i = 0; i < 2; i++)
     {
         establish_connection("grupoteste", "1234");
         //establish_connection("grupoPSIS", "SOCKETTT");
