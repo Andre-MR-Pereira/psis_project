@@ -15,7 +15,7 @@
 #define HASHSIZE 10001
 #define SERVER_SOCKET_ADDR "/tmp/server_socket"
 #define CALLBACK_SOCKET_ADDR "/tmp/callback_socket"
-#define AUTH_SOCKET_ADDR "192.168.1.1" // André: "192.168.1.73"
+#define AUTH_SOCKET_ADDR "192.168.1.73" // André: "192.168.1.73"
 
 pthread_rwlock_t groups_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
@@ -161,18 +161,20 @@ void show_groups()
     printf("\n");
 }
 
-void show_status(){
+void show_status()
+{
 
     client_list *aux;
     printf("#### APPLICATIONS' STATUS ####\n");
-    if(clients==NULL){
+    if (clients == NULL)
+    {
         printf("client list is empty\n");
     }
     for (aux = clients; aux != NULL; aux = aux->next)
     {
         printf("client PID : %d | ", aux->pid);
         printf("establishing time : %ld | ", aux->connection_open);
-        if(aux->connection_open == -1)
+        if (aux->connection_open == -1)
         {
             printf(" still connected\n");
         }
@@ -182,7 +184,6 @@ void show_status(){
         }
     }
     printf("\n");
-
 }
 
 void create_new_group(char *group)
@@ -190,23 +191,30 @@ void create_new_group(char *group)
     hash_list *aux;
 
     aux = (hash_list *)malloc(sizeof(hash_list));
-    aux->group = strdup(group);
-    aux->group_table = allocate_table(HASHSIZE);
-    aux->active_users = 0;
-    aux->remove_flag = 0;
-    if (pthread_rwlock_init(&(aux->hash_rwlock), NULL) != 0)
+    if (aux == NULL)
     {
-        perror("Error creating a hash lock");
-    }
-    if (groups == NULL)
-    {
-        aux->next = NULL;
+        perror("Could not create a new group\n");
     }
     else
     {
-        aux->next = groups;
+        aux->group = strdup(group);
+        aux->group_table = allocate_table(HASHSIZE);
+        aux->active_users = 0;
+        aux->remove_flag = 0;
+        if (pthread_rwlock_init(&(aux->hash_rwlock), NULL) != 0)
+        {
+            perror("Error creating a hash lock");
+        }
+        if (groups == NULL)
+        {
+            aux->next = NULL;
+        }
+        else
+        {
+            aux->next = groups;
+        }
+        groups = aux;
     }
-    groups = aux;
 }
 
 void delete_group(char *group)
@@ -214,38 +222,41 @@ void delete_group(char *group)
     //maybe useless, apagar depois
 }
 
-int count_n_elements(hash_list* group){
+int count_n_elements(hash_list *group)
+{
 
-    int counter=0;
+    int counter = 0;
     hash_list *aux;
 
-    for (aux = groups; aux != NULL; aux = aux->next){
+    for (aux = groups; aux != NULL; aux = aux->next)
+    {
         counter++;
     }
 
     return counter;
 }
 
-char* send_with_check_response(char* buffer){
-    //fazer aquilo dos timers aqui dentro 
+char *send_with_check_response(char *buffer)
+{
+    //fazer aquilo dos timers aqui dentro
 
     //send - iniciar timer
     //check if timer expirou
     //se sim -> reenvia
     //else rcvfrom
     //retorna o buffer recebido
-
 }
 
-void convert_time(){
+void convert_time()
+{
     //just to keep this saved for now
-     //guardar tempo conexão
-        time_t start;
-        struct tm *tm;
+    //guardar tempo conexão
+    time_t start;
+    struct tm *tm;
 
-        time(&start);
-        //clients->connection_open = localtime(&start);
-        /*//if conversion is necessary, use this code:
+    time(&start);
+    //clients->connection_open = localtime(&start);
+    /*//if conversion is necessary, use this code:
         tm = localtime(&start);
         if (strftime(buf, sizeof(buf), "%T %D", tm) == 0)
         {
@@ -257,12 +268,14 @@ void convert_time(){
         }*/
 }
 
-client_list* create_new_client(int client_fd){
+client_list *create_new_client(int client_fd)
+{
 
-    client_list* new_client = NULL;
+    client_list *new_client = NULL;
 
-    new_client = (client_list *) malloc(sizeof( client_list));
-    if(new_client == NULL){
+    new_client = (client_list *)malloc(sizeof(client_list));
+    if (new_client == NULL)
+    {
         printf("erros allocating memory for new client\n");
     }
     else
@@ -272,12 +285,12 @@ client_list* create_new_client(int client_fd){
         new_client->pid = -1;
         new_client->fd = client_fd;
         new_client->t_id = -1;
-        new_client->connection_close=-1;
+        new_client->connection_close = -1;
         //(ELEF) ver depois o que se pode inicializar logo
         //new_client->client_socket_addr=addr;
 
         //linkage
-        if(clients == NULL)//the clients list is empty
+        if (clients == NULL) //the clients list is empty
         {
             clients = new_client;
         }
@@ -292,7 +305,6 @@ client_list* create_new_client(int client_fd){
 
     //return 0; //the creation was not successful
     return new_client;
-
 }
 
 void *client_interaction(void *args)
@@ -301,10 +313,10 @@ void *client_interaction(void *args)
     hash_list *group;
     hashtable *buffer;
     //int *client_buffer = (int *)args;
-    client_list* this_client = (client_list*) args;
+    client_list *this_client = (client_list *)args;
     int client_fd = this_client->fd; //*client_buffer;
     int size_field1, size_field2, hooked = 0;
-    int connection_flag, error_flag, n_bytes;
+    int connection_flag, error_flag, n_bytes = 0;
     char command[5], field1[512], field2[512], auth_command[5], *value, auth_buffer[1040];
     struct sockaddr_in other_sock_addr;
     struct sockaddr_un client_callback_addr;
@@ -375,22 +387,44 @@ void *client_interaction(void *args)
             strcpy(auth_command, "CRE_");
             assemble_payload(auth_buffer, auth_command, field1, field2, 2);
 
-            sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+            n_bytes = 0;
+            while (1)
+            {
+                sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
+                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
-            n_bytes = recvfrom(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                               NULL, NULL);
+                n_bytes = recvfrom(send_socket, &auth_buffer, sizeof(auth_buffer), MSG_DONTWAIT,
+                                   NULL, NULL);
+                printf("1 packet sent\n");
+                usleep(100);
+                if (n_bytes > 0)
+                {
+                    break;
+                }
+            }
+
             connection_flag = extract_auth(auth_buffer, field1, field2);
 
             cleanBuffer(auth_buffer); //só para não ficar tudo bugado, limpa-se o buffer antes de mandar mais cenas
 
             strcpy(auth_command, "CMP_");
             assemble_payload(auth_buffer, auth_command, field1, field2, 2);
-            sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
-            n_bytes = recvfrom(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                               NULL, NULL);
+            n_bytes = 0;
+            while (1)
+            {
+                sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
+                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+
+                n_bytes = recvfrom(send_socket, &auth_buffer, sizeof(auth_buffer), MSG_DONTWAIT,
+                                   NULL, NULL);
+                printf("1 packet sent\n");
+                usleep(100);
+                if (n_bytes > 0)
+                {
+                    break;
+                }
+            }
             connection_flag = extract_auth(auth_buffer, field1, field2);
 
             if (connection_flag == 1) //verificar com o auth server
@@ -450,27 +484,33 @@ void *client_interaction(void *args)
                 exit(-1);
             }
             value = (char *)malloc((size_field2 + 1) * sizeof(char));
-            err_rcv = recv(client_fd, value, size_field2, 0);
-            if (err_rcv == -1)
+            if (value == NULL)
             {
-                perror("recieve");
-                exit(-1);
+                perror("Couldn´t allocate space for value");
             }
-            printf("PUT:Recebi %s e %s\n", field1, value);
-            if (hooked == 1)
+            else
             {
-                if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
+                err_rcv = recv(client_fd, value, size_field2, 0);
+                if (err_rcv == -1)
                 {
-                    perror("Lock Put write lock failed");
+                    perror("recieve");
+                    exit(-1);
                 }
-                if (group != NULL && (buffer = insert(group->group_table, field1, value, HASHSIZE)) != NULL)
+                printf("PUT:Recebi %s e %s\n", field1, value);
+                if (hooked == 1)
                 {
-                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                    if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
                     {
-                        perror("Unlock Put write lock failed");
+                        perror("Lock Put write lock failed");
                     }
+                    if (group != NULL && (buffer = insert(group->group_table, field1, value, HASHSIZE)) != NULL)
+                    {
+                        if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                        {
+                            perror("Unlock Put write lock failed");
+                        }
 
-                    /*if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
+                        /*if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
                     {
                         perror("Lock Put write lock failed");
                     }
@@ -480,45 +520,47 @@ void *client_interaction(void *args)
                         perror("Unlock Put write lock failed");
                     }*/
 
-                    callbacks *caux = buffer->head;
-                    connection_flag = 100;
-                    while (caux != NULL)
-                    {
-                        write(caux->callback_socket, &connection_flag, sizeof(connection_flag));
-                        caux = caux->next;
-                    }
+                        callbacks *caux = buffer->head;
+                        connection_flag = 100;
+                        while (caux != NULL)
+                        {
+                            write(caux->callback_socket, &connection_flag, sizeof(connection_flag));
+                            caux = caux->next;
+                        }
 
-                    connection_flag = 1;
-                    write(client_fd, &connection_flag, sizeof(connection_flag));
+                        connection_flag = 1;
+                        write(client_fd, &connection_flag, sizeof(connection_flag));
+                    }
+                    else //cuidado com else que o insert pode ser NULL
+                    {
+                        if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                        {
+                            perror("Unlock Put write lock failed");
+                        }
+
+                        error_flag = -3;
+                        write(client_fd, &error_flag, sizeof(error_flag));
+                    }
+                    //memset(value, 0, sizeof(value));
+                    cleanBuffer(auth_buffer);
+
+                    free(value);
                 }
-                else //cuidado com else que o insert pode ser NULL
+                else
                 {
-                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
-                    {
-                        perror("Unlock Put write lock failed");
-                    }
-
-                    error_flag = -3;
+                    printf("You haven´t established a connection to a group yet.\n");
+                    error_flag = -1;
+                    group->active_users--;
                     write(client_fd, &error_flag, sizeof(error_flag));
+                    //memset(value, 0, sizeof(value));
+                    cleanBuffer(auth_buffer);
+                    free(value);
+                    pthread_exit(NULL);
                 }
-                //memset(value, 0, sizeof(value));
-                cleanBuffer(auth_buffer);
 
-                free(value);
-            }
-            else
-            {
-                printf("You haven´t established a connection to a group yet.\n");
-                error_flag = -1;
-                group->active_users--;
-                write(client_fd, &error_flag, sizeof(error_flag));
-                //memset(value, 0, sizeof(value));
-                cleanBuffer(auth_buffer);
-                free(value);
-                pthread_exit(NULL);
+                break;
             }
 
-            break;
         case 2: //get_value
             err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
             if (err_rcv == -1)
@@ -742,7 +784,7 @@ void *client_interaction(void *args)
             error_flag = -404;
             //guardar tempo de saida
             this_client->connection_close = time(&end);
-            
+
             write(client_fd, &error_flag, sizeof(error_flag));
             pthread_exit(NULL);
         }
@@ -755,15 +797,14 @@ int UserInput()
     char option[10] = "\0", input[100] = "\0", group_name[20] = "\n", secret[20] = "\n";
     char field1[512], field2[512], auth_command[5], auth_buffer[1040], auth_rcv_buffer[1040];
     int connection_flag, n_bytes, n_pairs_kv; //n_pairs_kv = number of key-value pairs
-    struct sockaddr_un other_sock_addr;
+    struct sockaddr_in other_sock_addr;
     char *token;
-    char* auth_rcv_buffer_ptr = (char*)malloc(1040*sizeof(char));
-
+    char *auth_rcv_buffer_ptr = (char *)malloc(1040 * sizeof(char)); //(ELEF) proteger malloc
 
     //falta o bind?  pq o auth server vai ter de lhe responder com o secret
-    int other_sock_addr_size = sizeof(other_sock_addr);
-    strcpy(other_sock_addr.sun_path, AUTH_SOCKET_ADDR);
-    other_sock_addr.sun_family = AF_INET; //alterar depois para AF_INET
+    other_sock_addr.sin_family = AF_INET;
+    inet_aton(AUTH_SOCKET_ADDR, &other_sock_addr.sin_addr);
+    other_sock_addr.sin_port = htons(3001);
 
     printf("Enter command (note: group names must be 100 or less characters)\n");
     if (fgets(input, 100, stdin) == NULL)
@@ -785,22 +826,28 @@ int UserInput()
 
             strcpy(auth_command, "CRE_");
 
-            assemble_payload(auth_buffer, auth_command, field1, field2, 1);
-            sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+            assemble_payload(auth_buffer, auth_command, group_name, NULL, 1);
 
-            n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), 0,
-                               NULL, NULL);
+            n_bytes = 0;
+            while (1)
+            {
+                sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
+                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                printf("auth_buffer: %s\n", auth_buffer);
+                n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
+                                   NULL, NULL);
+                printf("1 packet sent\n");
+                usleep(100);
+                if (n_bytes > 0)
+                {
+                    break;
+                }
+            }
 
-            /*n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
-                               NULL, NULL);
-            printf("A connection flag foi %d\n", connection_flag);*/
             cleanBuffer(auth_buffer);
 
             //temos que fazer strok e analisar 1º a flag
-            token = strtok(auth_rcv_buffer, "_");
-            connection_flag = atoi(token);
-            printf("A connection flag foi %d\n", connection_flag);
+            connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
 
             //e se for 1 então foi sucesso e tira-se o secret
             if (connection_flag == -4)
@@ -809,8 +856,6 @@ int UserInput()
             }
             else if (connection_flag == 1)
             {
-
-                strcpy(secret, strtok(token, "_"));
                 //se o grupo ainda não existir no AuthServer, então cria-se o grupo no LocalServer
                 create_new_group(group_name);
                 printf("The secret of group %s is %s\n", group_name, secret);
@@ -844,13 +889,13 @@ int UserInput()
                 assemble_payload(auth_buffer, auth_command, group_name, NULL, 1);
 
                 sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
                 sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
                 n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), 0,
-                                NULL, NULL);
+                                   NULL, NULL);
                 /*n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
                                    NULL, NULL);
                 printf("A connection flag foi %d\n", connection_flag);*/
@@ -890,10 +935,10 @@ int UserInput()
                         printf("A connection flag foi %d\n", connection_flag);*/
 
                         sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                            (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                               (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
                         n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), 0,
-                                        NULL, NULL);
+                                           NULL, NULL);
 
                         cleanBuffer(auth_buffer);
 
@@ -948,10 +993,10 @@ int UserInput()
                 //auth_rcv_buffer_ptr = send_with_check_response(auth_buffer);
 
                 sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
 
                 n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), 0,
-                                NULL, NULL);
+                                   NULL, NULL);
 
                 cleanBuffer(auth_buffer);
 
@@ -960,17 +1005,18 @@ int UserInput()
                 connection_flag = atoi(token);
                 printf("A connection flag foi %d\n", connection_flag);
 
-                if(connection_flag==1){
+                if (connection_flag == 1)
+                {
 
                     strcpy(secret, strtok(token, "_"));
 
                     //percorrer a lista do grupo e contar o nº de elementos
-                    n_pairs_kv=count_n_elements(search_group);
+                    n_pairs_kv = count_n_elements(search_group);
 
                     printf("The group %s has %d key-value pairs and its secret is %s\n", group_name, n_pairs_kv, secret);
-
                 }
-                else if(connection_flag==-2){
+                else if (connection_flag == -2)
+                {
                     perror("group doesn't exist in auth");
                 }
                 else
@@ -978,7 +1024,6 @@ int UserInput()
                     //default
                     printf("Should not come here - User Input - ASK\n");
                 }
-                
             }
 
             return 0;
@@ -1015,7 +1060,7 @@ void *user_interface(void *args)
 int main()
 {
     int server_socket, buffer;
-    client_list* this_client;
+    client_list *this_client;
     struct sockaddr_un server_socket_addr, client_socket_addr;
     pthread_t t_id[1000];
     pthread_t admin;
@@ -1106,21 +1151,20 @@ int main()
         //client_fd_vector[i] = client_fd;
         //accepted_connections++;
 
-        if((this_client=create_new_client(client_fd))!=NULL)//==1)
+        if ((this_client = create_new_client(client_fd)) != NULL) //==1)
         {
             //(ELEF) take care of possible race condition! criar uma rwlock para os clients
 
             //guardar tempo conexão
-            this_client->connection_open = time(&start);   
+            this_client->connection_open = time(&start);
 
             //create new thread for the client
-            if ((pthread_create(&(this_client->t_id), NULL, client_interaction, (void*) this_client)))//(void *)&client_fd) != 0))
+            if ((pthread_create(&(this_client->t_id), NULL, client_interaction, (void *)this_client))) //(void *)&client_fd) != 0))
             {
                 printf("Error on thread creation");
             }
-
         }
-        
+
         /*time_t start;
         struct tm *tm;
         clients->connection_open = localtime(&start);

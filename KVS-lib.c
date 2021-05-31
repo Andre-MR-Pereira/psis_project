@@ -141,7 +141,7 @@ int put_value(char *key, char *value)
 
 int get_value(char *key, char **value)
 {
-    int flag = 0, size_buffer;
+    int flag = 0, size_buffer = 0;
 
     if (sizeof(key) < 0) //ainda a definir
     {

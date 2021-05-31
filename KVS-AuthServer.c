@@ -154,7 +154,7 @@ int main()
                 //we only need to send the flag and the secret
                 assemble_payload(send_buffer, flag, field1, field2, 2);
             }
-
+            printf("%s\n", send_buffer);
             //enviar apenas 1 buffer com a flag e o secret em caso de sucesso
             sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);

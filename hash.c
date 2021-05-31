@@ -17,7 +17,7 @@ unsigned hash(char *key, int size)
 /* lookup: look for s in hashtab */
 hashtable *lookup(hashtable **table, char *key, int size)
 {
-    hashtable *aux;
+    hashtable *aux = NULL;
     for (aux = table[hash(key, size)]; aux != NULL; aux = aux->next)
     {
         if (strcmp(key, aux->key) == 0)
@@ -29,7 +29,7 @@ hashtable *lookup(hashtable **table, char *key, int size)
 /* install: put (key, value) in hashtab */
 hashtable *insert(hashtable **table, char *key, char *value, int size)
 {
-    hashtable *aux;
+    hashtable *aux = NULL;
     unsigned hashval;
     if ((aux = lookup(table, key, size)) == NULL)
     { /* not found */
@@ -62,8 +62,8 @@ hashtable **allocate_table(int size)
 int delete_hash(hashtable **table, char *key, int size)
 {
     int flag_head = 1;
-    hashtable *aux, *prev;
-    callbacks *caux, *cprev;
+    hashtable *aux = NULL, *prev = NULL;
+    callbacks *caux = NULL, *cprev = NULL;
     unsigned hashval;
     if ((aux = lookup(table, key, size)) == NULL)
     { /* not found */
@@ -113,7 +113,7 @@ int delete_hash(hashtable **table, char *key, int size)
 
 callbacks *list_call(hashtable **table, char *key, int size)
 {
-    hashtable *aux;
+    hashtable *aux = NULL;
     aux = lookup(table, key, size);
     if (aux != NULL)
     {
@@ -127,7 +127,7 @@ callbacks *list_call(hashtable **table, char *key, int size)
 
 int insert_callsocket(hashtable *group, int socket)
 {
-    callbacks *new, *caux;
+    callbacks *new = NULL, *caux = NULL;
 
     caux = group->head;
     while (caux != NULL)
@@ -154,8 +154,8 @@ int insert_callsocket(hashtable *group, int socket)
 
 void delete_table(hashtable **table, int size)
 {
-    hashtable *aux, *prev;
-    callbacks *caux, *cprev;
+    hashtable *aux=NULL, *prev=NULL;
+    callbacks *caux = NULL, *cprev = NULL;
     for (int i = 0; i < size; i++)
     {
         if (table[i] != NULL)
