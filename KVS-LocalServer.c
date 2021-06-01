@@ -15,7 +15,7 @@
 #define HASHSIZE 10001
 #define SERVER_SOCKET_ADDR "/tmp/server_socket"
 #define CALLBACK_SOCKET_ADDR "/tmp/callback_socket"
-#define AUTH_SOCKET_ADDR "192.168.1.73" // André: "192.168.1.73"
+#define AUTH_SOCKET_ADDR " 172.22.146.84" // André: "192.168.1.73"
 
 pthread_rwlock_t groups_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
@@ -102,7 +102,7 @@ int extract_auth(char *packet, char *field1, char *field2)
     return flag;
 }
 
-void assemble_payload(char *buffer, char *command, char *field1, char *field2, int n_fields)
+void assemble_payload(char *buffer, char *command, char *field1, char *field2)
 {
     strcpy(buffer, "");
     strcat(buffer, command);
@@ -111,14 +111,12 @@ void assemble_payload(char *buffer, char *command, char *field1, char *field2, i
         strcat(buffer, field1);
         strcat(buffer, "_");
     }
-    if (n_fields == 2)
+    if (field2 != NULL)
     {
-        if (field2 != NULL)
-        {
-            strcat(buffer, field2);
-            strcat(buffer, "_");
-        }
+        strcat(buffer, field2);
+        strcat(buffer, "_");
     }
+    
 }
 
 //sets the provided buffer to '\0'
@@ -385,7 +383,7 @@ void *client_interaction(void *args)
             other_sock_addr.sin_port = htons(3001);
 
             strcpy(auth_command, "CRE_");
-            assemble_payload(auth_buffer, auth_command, field1, field2, 2);
+            assemble_payload(auth_buffer, auth_command, field1, field2);
 
             n_bytes = 0;
             while (1)
@@ -408,7 +406,7 @@ void *client_interaction(void *args)
             cleanBuffer(auth_buffer); //só para não ficar tudo bugado, limpa-se o buffer antes de mandar mais cenas
 
             strcpy(auth_command, "CMP_");
-            assemble_payload(auth_buffer, auth_command, field1, field2, 2);
+            assemble_payload(auth_buffer, auth_command, field1, field2);
 
             n_bytes = 0;
             while (1)
@@ -794,7 +792,7 @@ void *client_interaction(void *args)
 int UserInput()
 {
 
-    char option[10] = "\0", input[100] = "\0", group_name[20] = "\n", secret[20] = "\n";
+    char option[10] = "\0", input[520] = "\0", group_name[512] = "\n", secret[512] = "\n";
     char field1[512], field2[512], auth_command[5], auth_buffer[1040], auth_rcv_buffer[1040];
     int connection_flag, n_bytes, n_pairs_kv; //n_pairs_kv = number of key-value pairs
     struct sockaddr_in other_sock_addr;
@@ -806,8 +804,8 @@ int UserInput()
     inet_aton(AUTH_SOCKET_ADDR, &other_sock_addr.sin_addr);
     other_sock_addr.sin_port = htons(3001);
 
-    printf("Enter command (note: group names must be 100 or less characters)\n");
-    if (fgets(input, 100, stdin) == NULL)
+    printf("Enter command (note: group names must be 512 or less characters)\n");
+    if (fgets(input, 520, stdin) == NULL)
     {
         return 1;
     }
@@ -826,17 +824,17 @@ int UserInput()
 
             strcpy(auth_command, "CRE_");
 
-            assemble_payload(auth_buffer, auth_command, group_name, NULL, 1);
+            assemble_payload(auth_buffer, auth_command, group_name, NULL);
 
             n_bytes = 0;
             while (1)
             {
                 sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                        (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-                printf("auth_buffer: %s\n", auth_buffer);
+                printf("auth_buffer: %s \t", auth_buffer);
                 n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                    NULL, NULL);
-                printf("1 packet sent\n");
+                printf("1 packet sent \n");
                 usleep(100);
                 if (n_bytes > 0)
                 {
@@ -844,13 +842,13 @@ int UserInput()
                 }
             }
 
-            cleanBuffer(auth_buffer);
+            //cleanBuffer(auth_buffer);
 
-            //temos que fazer strok e analisar 1º a flag
+            //temos de extrair os fields e analisar a connection flag
             connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
 
             //e se for 1 então foi sucesso e tira-se o secret
-            if (connection_flag == -4)
+            if (connection_flag == -12)
             {
                 printf("The group already exists\n");
             }
@@ -886,23 +884,26 @@ int UserInput()
             {
                 //enviar msg ao AuthServer a avisar para apagar lá o grupo e segredo
                 strcpy(auth_command, "DEL_");
-                assemble_payload(auth_buffer, auth_command, group_name, NULL, 1);
+                assemble_payload(auth_buffer, auth_command, group_name, NULL);
 
-                sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                n_bytes = 0;
+                while (1)
+                {
+                    sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
+                        (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                    printf("auth_buffer: %s\n", auth_buffer);
+                    n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
+                                    NULL, NULL);
+                    printf("1 packet sent\n");
+                    usleep(100);
+                    if (n_bytes > 0)
+                    {
+                        break;
+                    }
+                }
 
-                sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-
-                n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), 0,
-                                   NULL, NULL);
-                /*n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
-                                   NULL, NULL);
-                printf("A connection flag foi %d\n", connection_flag);*/
-
-                //temos que fazer strok e analisar 1º a flag
-                token = strtok(auth_rcv_buffer, "_");
-                connection_flag = atoi(token);
+                //temos de extrair os fields e analisar a connection flag
+                connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
                 printf("A connection flag foi %d\n", connection_flag);
 
                 if (connection_flag == -3) //deletion failed in the AuthServer
@@ -925,26 +926,26 @@ int UserInput()
                     {
                         //enviar msg ao AuthServer a avisar para apagar lá o grupo e segredo
                         strcpy(auth_command, "DEL_");
-                        assemble_payload(auth_buffer, auth_command, group_name, NULL, 1);
+                        assemble_payload(auth_buffer, auth_command, group_name, NULL);
 
-                        /*sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                                 (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                        n_bytes = 0;
+                        while (1)
+                        {
+                            sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
+                                (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                            printf("auth_buffer: %s\n", auth_buffer);
+                            n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
+                                            NULL, NULL);
+                            printf("1 packet sent\n");
+                            usleep(100);
+                            if (n_bytes > 0)
+                            {
+                                break;
+                            }
+                        }
 
-                        n_bytes = recvfrom(send_socket, &connection_flag, sizeof(connection_flag), 0,
-                                           NULL, NULL);
-                        printf("A connection flag foi %d\n", connection_flag);*/
-
-                        sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                               (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-
-                        n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), 0,
-                                           NULL, NULL);
-
-                        cleanBuffer(auth_buffer);
-
-                        //temos que fazer strok e analisar 1º a flag
-                        token = strtok(auth_rcv_buffer, "_");
-                        connection_flag = atoi(token);
+                        //temos de extrair os fields e analisar a connection flag
+                        connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
                         printf("A connection flag foi %d\n", connection_flag);
 
                         if (connection_flag == -3) //deletion failed in the AuthServer
@@ -989,27 +990,30 @@ int UserInput()
             {
                 //se o grupo existe, envia msg ao AuthServer a pedir o secret
                 strcpy(auth_command, "ASK_");
-                assemble_payload(auth_buffer, auth_command, group_name, NULL, 1);
-                //auth_rcv_buffer_ptr = send_with_check_response(auth_buffer);
+                assemble_payload(auth_buffer, auth_command, group_name, NULL);
 
-                sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                n_bytes = 0;
+                while (1)
+                {
+                    sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
+                        (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                    printf("auth_buffer: %s\n", auth_buffer);
+                    n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
+                                    NULL, NULL);
+                    printf("1 packet sent\n");
+                    usleep(100);
+                    if (n_bytes > 0)
+                    {
+                        break;
+                    }
+                }
 
-                n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), 0,
-                                   NULL, NULL);
-
-                cleanBuffer(auth_buffer);
-
-                //temos que fazer strok e analisar 1º a flag
-                token = strtok(auth_rcv_buffer, "_");
-                connection_flag = atoi(token);
+                //temos de extrair os fields e analisar a connection flag
+                connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
                 printf("A connection flag foi %d\n", connection_flag);
 
                 if (connection_flag == 1)
                 {
-
-                    strcpy(secret, strtok(token, "_"));
-
                     //percorrer a lista do grupo e contar o nº de elementos
                     n_pairs_kv = count_n_elements(search_group);
 

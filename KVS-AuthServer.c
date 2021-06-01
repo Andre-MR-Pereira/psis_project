@@ -49,7 +49,7 @@ int extract_command(char *packet, char *field1, char *field2)
     return -1;
 }
 
-void assemble_payload(char *buffer, int flag, char *field1, char *field2, int n_fields)
+void assemble_payload(char *buffer, int flag, char *field1, char *field2)
 {
     char flagstr[2];
     sprintf(flagstr, "%d", flag);
@@ -61,13 +61,22 @@ void assemble_payload(char *buffer, int flag, char *field1, char *field2, int n_
         strcat(buffer, field1);
         strcat(buffer, "_");
     }
-    if (n_fields == 2)
+    if (field2 != NULL)
     {
-        if (field2 != NULL)
-        {
-            strcat(buffer, field2);
-            strcat(buffer, "_");
-        }
+        strcat(buffer, field2);
+        strcat(buffer, "_");
+    }
+
+    printf("inside assemble: %s size: %lu\n", buffer, sizeof(buffer));
+    
+}
+
+//sets the provided buffer to '\0'
+void cleanBuffer(char *buff)
+{
+    for (int i = 0; i < strlen(buff); i++)
+    {
+        buff[i] = '\0';
     }
 }
 
@@ -107,7 +116,7 @@ int main()
         exit(-1);
     }
 
-    inet_aton("192.168.1.73", &server_socket_addr.sin_addr);
+    inet_aton("172.22.146.84", &server_socket_addr.sin_addr); // André: "192.168.1.73"
     server_socket_addr.sin_port = htons(3001);
     server_socket_addr.sin_family = AF_INET;
     server_socket_addr.sin_addr.s_addr = INADDR_ANY;
@@ -120,6 +129,7 @@ int main()
 
     while (1)
     {
+        printf("here\n");
         size_sender_addr = sizeof(struct sockaddr_storage);
         n_bytes = recvfrom(server_socket, &buffer, sizeof(buffer), 0,
                            (struct sockaddr *)&sender_sock_addr, &size_sender_addr);
@@ -131,33 +141,51 @@ int main()
 
             printf("%s e %s do Local\n", field1, field2);
 
-            //generate secret
-            strcpy(field2, generate_secret());
+            group = lookup(vault, field1, HASHSIZE);
 
-            if (pthread_rwlock_wrlock(&groups_rwlock) != 0)
+            if(group == NULL)//the group doesn't exist yet
             {
-                perror("Lock Put write lock failed");
-            }
-            group = insert(vault, field1, field2, HASHSIZE);
-            if (pthread_rwlock_unlock(&groups_rwlock) != 0)
-            {
-                perror("Unlock Put write lock failed");
-            }
+                //generate secret
+                strcpy(field2, generate_secret());
 
-            if (group == NULL) //the group couldn´t be created
-            {
-                flag = -3;
-                assemble_payload(send_buffer, flag, NULL, NULL, 0);
+                if (pthread_rwlock_wrlock(&groups_rwlock) != 0)
+                {
+                    perror("Lock Put write lock failed");
+                }
+                group = insert(vault, field1, field2, HASHSIZE);
+                if (pthread_rwlock_unlock(&groups_rwlock) != 0)
+                {
+                    perror("Unlock Put write lock failed");
+                }
+
+                if (group == NULL) //the group couldn´t be created
+                {
+                    flag = -3;
+                    assemble_payload(send_buffer, flag, NULL, NULL);
+                }
+                else
+                {
+                    //we only need to send the flag and the secret
+                    assemble_payload(send_buffer, flag, field1, field2);
+                }
+                printf("%s\n", send_buffer);
+                //enviar apenas 1 buffer com a flag e o secret em caso de sucesso
+                sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
+                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
+
             }
-            else
+            else //the group already exists
             {
-                //we only need to send the flag and the secret
-                assemble_payload(send_buffer, flag, field1, field2, 2);
+                flag = -12;
+                printf("send_bufer before assemble: %s\n", send_buffer);
+                assemble_payload(send_buffer, flag, NULL, NULL); //o stack smash acontece depois de sair do assemble_payload
+                printf("saí do assemble\n");
+                printf("%s\n", send_buffer);
+                //enviar apenas 1 buffer com a flag e o secret em caso de sucesso
+                sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
+                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             }
-            printf("%s\n", send_buffer);
-            //enviar apenas 1 buffer com a flag e o secret em caso de sucesso
-            sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
-                   (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
+ 
             break;
         case 1: //delete
             flag = 1;
@@ -176,7 +204,7 @@ int main()
                 perror("Unlock Put write lock failed");
             }
 
-            assemble_payload(send_buffer, flag, NULL, NULL, 0);
+            assemble_payload(send_buffer, flag, NULL, NULL);
 
             sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
@@ -197,19 +225,19 @@ int main()
             {
                 flag = 1;
                 printf("Checks out\n");
-                assemble_payload(send_buffer, flag, field1, field2, 2);
+                assemble_payload(send_buffer, flag, field1, field2);
             }
             else if (group == NULL)
             {
                 flag = -2;
                 printf("Group not found\n");
-                assemble_payload(send_buffer, flag, NULL, NULL, 2);
+                assemble_payload(send_buffer, flag, NULL, NULL);
             }
             else
             {
                 flag = -3;
                 printf("Combination was off\n");
-                assemble_payload(send_buffer, flag, NULL, NULL, 2);
+                assemble_payload(send_buffer, flag, NULL, NULL);
             }
             sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
@@ -230,13 +258,13 @@ int main()
             {
                 flag = 1;
                 printf("Sending secret\n");
-                assemble_payload(send_buffer, flag, field1, group->value, 2);
+                assemble_payload(send_buffer, flag, field1, group->value);
             }
             else
             {
                 flag = -2;
                 printf("Group not found\n");
-                assemble_payload(send_buffer, flag, NULL, NULL, 2);
+                assemble_payload(send_buffer, flag, NULL, NULL);
             }
             sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
@@ -247,5 +275,8 @@ int main()
             sendto(server_socket, &flag, sizeof(flag), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
         }
+
+        cleanBuffer(buffer);
+        cleanBuffer(send_buffer);
     }
 }
