@@ -31,8 +31,10 @@ hashtable *insert(hashtable **table, char *key, char *value, int size)
 {
     hashtable *aux = NULL;
     unsigned hashval;
+    printf("Entra %s e %s na insert\n", key, value);
     if ((aux = lookup(table, key, size)) == NULL)
     { /* not found */
+        printf("Cria grupo\n");
         aux = (hashtable *)malloc(sizeof(hashtable));
         if (aux == NULL || (aux->key = strdup(key)) == NULL)
             return NULL;
@@ -154,7 +156,7 @@ int insert_callsocket(hashtable *group, int socket)
 
 void delete_table(hashtable **table, int size)
 {
-    hashtable *aux=NULL, *prev=NULL;
+    hashtable *aux = NULL, *prev = NULL;
     callbacks *caux = NULL, *cprev = NULL;
     for (int i = 0; i < size; i++)
     {

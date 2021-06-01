@@ -66,9 +66,6 @@ void assemble_payload(char *buffer, int flag, char *field1, char *field2)
         strcat(buffer, field2);
         strcat(buffer, "_");
     }
-
-    printf("inside assemble: %s size: %lu\n", buffer, sizeof(buffer));
-    
 }
 
 //sets the provided buffer to '\0'
@@ -129,11 +126,11 @@ int main()
 
     while (1)
     {
-        printf("here\n");
         size_sender_addr = sizeof(struct sockaddr_storage);
         n_bytes = recvfrom(server_socket, &buffer, sizeof(buffer), 0,
                            (struct sockaddr *)&sender_sock_addr, &size_sender_addr);
-
+        printf("+++++++++++++++++++++++++\n");
+        printf("%s\n", buffer);
         switch (extract_command(buffer, field1, field2))
         {
         case 0: //create
@@ -143,7 +140,7 @@ int main()
 
             group = lookup(vault, field1, HASHSIZE);
 
-            if(group == NULL)//the group doesn't exist yet
+            if (group == NULL) //the group doesn't exist yet
             {
                 //generate secret
                 strcpy(field2, generate_secret());
@@ -168,24 +165,22 @@ int main()
                     //we only need to send the flag and the secret
                     assemble_payload(send_buffer, flag, field1, field2);
                 }
-                printf("%s\n", send_buffer);
+                printf("Nanda flag %d\n", flag);
                 //enviar apenas 1 buffer com a flag e o secret em caso de sucesso
+                printf("Sends %s\n", send_buffer);
                 sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
-                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
-
+                       (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             }
             else //the group already exists
             {
-                flag = -12;
-                printf("send_bufer before assemble: %s\n", send_buffer);
-                assemble_payload(send_buffer, flag, NULL, NULL); //o stack smash acontece depois de sair do assemble_payload
-                printf("saí do assemble\n");
-                printf("%s\n", send_buffer);
-                //enviar apenas 1 buffer com a flag e o secret em caso de sucesso
+                flag = -9;
+                assemble_payload(send_buffer, flag, NULL, NULL);
+                printf("Nanda flag %d\n", flag);
+                printf("Sends %s\n", send_buffer);
                 sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
-                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
+                       (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             }
- 
+
             break;
         case 1: //delete
             flag = 1;

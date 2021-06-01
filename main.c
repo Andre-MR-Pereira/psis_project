@@ -11,7 +11,10 @@ int main()
 {
     for (int i = 0; i < 2; i++)
     {
-        establish_connection("grupoteste", "1234");
+        printf("1\n");
+        establish_connection("grupoteste", "12345");
+        printf("2\n");
+
         //establish_connection("grupoPSIS", "SOCKETTT");
         put_value("Laranja", "39875983759236589243659237392856723");
         put_value("Mabeco", "5");

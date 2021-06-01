@@ -15,7 +15,7 @@
 #define HASHSIZE 10001
 #define SERVER_SOCKET_ADDR "/tmp/server_socket"
 #define CALLBACK_SOCKET_ADDR "/tmp/callback_socket"
-#define AUTH_SOCKET_ADDR " 172.22.146.84" // André: "192.168.1.73"
+#define AUTH_SOCKET_ADDR " 172.22.146.73" // André: "192.168.1.73"
 
 pthread_rwlock_t groups_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
@@ -86,7 +86,14 @@ int extract_auth(char *packet, char *field1, char *field2)
     int flag;
 
     strcpy(buffer, strtok(packet, "_"));
-    flag = buffer[0] - '0';
+    if (buffer[0] == '-')
+    {
+        flag = -(buffer[1] - '0');
+    }
+    else
+    {
+        flag = buffer[0] - '0';
+    }
 
     f1 = strtok(NULL, "_");
     if (f1 != NULL)
@@ -116,7 +123,6 @@ void assemble_payload(char *buffer, char *command, char *field1, char *field2)
         strcat(buffer, field2);
         strcat(buffer, "_");
     }
-    
 }
 
 //sets the provided buffer to '\0'
@@ -382,29 +388,6 @@ void *client_interaction(void *args)
             inet_aton(AUTH_SOCKET_ADDR, &other_sock_addr.sin_addr);
             other_sock_addr.sin_port = htons(3001);
 
-            strcpy(auth_command, "CRE_");
-            assemble_payload(auth_buffer, auth_command, field1, field2);
-
-            n_bytes = 0;
-            while (1)
-            {
-                sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                       (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-
-                n_bytes = recvfrom(send_socket, &auth_buffer, sizeof(auth_buffer), MSG_DONTWAIT,
-                                   NULL, NULL);
-                printf("1 packet sent\n");
-                usleep(100);
-                if (n_bytes > 0)
-                {
-                    break;
-                }
-            }
-
-            connection_flag = extract_auth(auth_buffer, field1, field2);
-
-            cleanBuffer(auth_buffer); //só para não ficar tudo bugado, limpa-se o buffer antes de mandar mais cenas
-
             strcpy(auth_command, "CMP_");
             assemble_payload(auth_buffer, auth_command, field1, field2);
 
@@ -416,14 +399,15 @@ void *client_interaction(void *args)
 
                 n_bytes = recvfrom(send_socket, &auth_buffer, sizeof(auth_buffer), MSG_DONTWAIT,
                                    NULL, NULL);
-                printf("1 packet sent\n");
-                usleep(100);
+                printf("1 packet sent CNP\n");
+                sleep(5);
                 if (n_bytes > 0)
                 {
                     break;
                 }
             }
             connection_flag = extract_auth(auth_buffer, field1, field2);
+            printf("Conpare|flag %d\n", connection_flag);
 
             if (connection_flag == 1) //verificar com o auth server
             {
@@ -831,11 +815,10 @@ int UserInput()
             {
                 sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                        (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-                printf("auth_buffer: %s \t", auth_buffer);
                 n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                    NULL, NULL);
                 printf("1 packet sent \n");
-                usleep(100);
+                sleep(2);
                 if (n_bytes > 0)
                 {
                     break;
@@ -848,7 +831,7 @@ int UserInput()
             connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
 
             //e se for 1 então foi sucesso e tira-se o secret
-            if (connection_flag == -12)
+            if (connection_flag == -9)
             {
                 printf("The group already exists\n");
             }
@@ -890,10 +873,10 @@ int UserInput()
                 while (1)
                 {
                     sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                        (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                           (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
                     printf("auth_buffer: %s\n", auth_buffer);
                     n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
-                                    NULL, NULL);
+                                       NULL, NULL);
                     printf("1 packet sent\n");
                     usleep(100);
                     if (n_bytes > 0)
@@ -932,10 +915,10 @@ int UserInput()
                         while (1)
                         {
                             sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                                (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
                             printf("auth_buffer: %s\n", auth_buffer);
                             n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
-                                            NULL, NULL);
+                                               NULL, NULL);
                             printf("1 packet sent\n");
                             usleep(100);
                             if (n_bytes > 0)
@@ -996,10 +979,10 @@ int UserInput()
                 while (1)
                 {
                     sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                        (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                           (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
                     printf("auth_buffer: %s\n", auth_buffer);
                     n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
-                                    NULL, NULL);
+                                       NULL, NULL);
                     printf("1 packet sent\n");
                     usleep(100);
                     if (n_bytes > 0)
