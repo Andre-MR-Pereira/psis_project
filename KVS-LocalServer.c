@@ -394,7 +394,7 @@ void *client_interaction(void *args)
                 usleep(100);
                 n_bytes = recvfrom(send_socket, &auth_buffer, sizeof(auth_buffer), MSG_DONTWAIT,
                                    NULL, NULL);
-                printf("1 packet sent\n");
+                printf("%d  |   1 packet sent\n", i);
                 if (n_bytes > 0)
                 {
                     break;
@@ -832,7 +832,7 @@ int UserInput()
                 usleep(100);
                 n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                    NULL, NULL);
-                printf("%d|1 packet sent \n", i);
+                printf("%d   |     1 packet sent \n", i);
                 if (n_bytes > 0)
                 {
                     break;
@@ -902,7 +902,7 @@ int UserInput()
                     usleep(100);
                     n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                        NULL, NULL);
-                    printf("1 packet sent\n");
+                    printf("%d  |  1 packet sent\n", i);
                     if (n_bytes > 0)
                     {
                         break;
@@ -954,7 +954,7 @@ int UserInput()
                             usleep(100);
                             n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                                NULL, NULL);
-                            printf("1 packet sent\n");
+                            printf("%d  |   1 packet sent\n", i);
                             if (n_bytes > 0)
                             {
                                 break;
@@ -1028,7 +1028,7 @@ int UserInput()
                     usleep(100);
                     n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                        NULL, NULL);
-                    printf("1 packet sent\n");
+                    printf("%d   |    1 packet sent\n", i);
                     if (n_bytes > 0)
                     {
                         break;
