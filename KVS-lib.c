@@ -81,6 +81,11 @@ int establish_connection(char *group_id, char *secret)
         printf("Establish failed with the group %s,so you will remain connected to your previous group\n", group_id);
         return flag;
     }
+    else if(flag == -5) //confirma se é okay André
+    {
+        printf("Establish failed with the group %s, group is deleted. Not connected to any group\n", group_id);
+        return flag;
+    }
     else
     {
         remove(client_addr);

@@ -200,7 +200,8 @@ int main()
             }
 
             assemble_payload(send_buffer, flag, NULL, NULL);
-
+            printf("Nanda flag %d\n", flag);
+            printf("Sends %s\n", send_buffer);
             sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
@@ -234,6 +235,8 @@ int main()
                 printf("Combination was off\n");
                 assemble_payload(send_buffer, flag, NULL, NULL);
             }
+            printf("Nanda flag %d\n", flag);
+            printf("Sends %s\n", send_buffer);
             sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
@@ -261,6 +264,8 @@ int main()
                 printf("Group not found\n");
                 assemble_payload(send_buffer, flag, NULL, NULL);
             }
+            printf("Nanda flag %d\n", flag);
+            printf("Sends %s\n", send_buffer);
             sendto(server_socket, &send_buffer, sizeof(send_buffer), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
             break;
