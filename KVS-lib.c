@@ -21,6 +21,8 @@ int establish_connection(char *group_id, char *secret)
         printf("Size of group and secret must be below 512 bytes.\n");
         return -5;
     }
+    if (group_id == NULL || secret == NULL)
+        return -500;
 
     pid_t pid = getpid();
     snprintf(client_addr, 1000, "/tmp/client_socket_%d", pid);
@@ -53,8 +55,8 @@ int establish_connection(char *group_id, char *secret)
         exit(-1);
     }
     char command[5] = "EST_";
-    int size_group = strlen(group_id);
-    int size_secret = strlen(secret);
+    int size_group = strlen(group_id) + 1;
+    int size_secret = strlen(secret) + 1;
     write(send_socket, &command, sizeof(command));
     write(send_socket, &size_group, sizeof(size_group));
     write(send_socket, group_id, size_group);
@@ -96,17 +98,19 @@ int put_value(char *key, char *value)
         printf("Size of group and secret must be below 512 bytes.\n");
         return -11;
     }
+    if (key == NULL || value == NULL)
+        return -500;
 
     if (hooked == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "PUT_";
-        int size_key = strlen(key);
-        int size_value = strlen(value);
+        int size_key = strlen(key) + 1;
+        int size_value = strlen(value) + 1;
         write(send_socket, &command, sizeof(command));
         write(send_socket, &size_key, sizeof(size_key));
-        write(send_socket, key, strlen(key));
+        write(send_socket, key, size_key);
         write(send_socket, &size_value, sizeof(size_value));
-        write(send_socket, value, strlen(value));
+        write(send_socket, value, size_value);
 
         int err_rcv = recv(send_socket, &flag, sizeof(int), 0);
         if (err_rcv == -1)
@@ -148,14 +152,16 @@ int get_value(char *key, char **value)
         printf("Size of group and secret must be below 512 bytes.\n");
         return -11;
     }
+    if (key == NULL || value == NULL)
+        return -500;
 
     if (hooked == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "GET_";
-        int size_key = strlen(key);
+        int size_key = strlen(key) + 1;
         write(send_socket, &command, sizeof(command));
         write(send_socket, &size_key, sizeof(size_key));
-        write(send_socket, key, strlen(key));
+        write(send_socket, key, size_key);
 
         int err_rcv = recv(send_socket, &flag, sizeof(int), 0);
         if (err_rcv == -1)
@@ -170,7 +176,7 @@ int get_value(char *key, char **value)
             perror("recieve");
             exit(-1);
         }
-        char buffer[size_buffer + 1];
+        char buffer[size_buffer];
         err_rcv = recv(send_socket, buffer, size_buffer, 0);
         if (err_rcv == -1)
         {
@@ -181,7 +187,7 @@ int get_value(char *key, char **value)
         if (flag == 1)
         {
             printf("Value has been fetched\n");
-            *value = (char *)malloc((size_buffer + 1) * sizeof(char));
+            *value = (char *)malloc((size_buffer) * sizeof(char));
             strcpy(*value, buffer);
             return flag;
         }
@@ -213,14 +219,16 @@ int delete_value(char *key)
         printf("Size of group and secret must be below 512 bytes.\n");
         return -11;
     }
+    if (key == NULL)
+        return -500;
 
     if (hooked == 1) //verificar que a socket esta ligada ao server
     {
         char command[5] = "DEL_";
-        int size_key = strlen(key);
+        int size_key = strlen(key) + 1;
         write(send_socket, &command, sizeof(command));
         write(send_socket, &size_key, sizeof(size_key));
-        write(send_socket, key, strlen(key));
+        write(send_socket, key, size_key);
 
         int err_rcv = recv(send_socket, &flag, sizeof(int), 0);
         if (err_rcv == -1)
@@ -264,6 +272,9 @@ int register_callback(char *key, void (*callback_function)(char *))
     int plug;
     char *plug_addr;
     struct sockaddr_un callback_addr_server, callback_addr_client;
+
+    if (key == NULL)
+        return -500;
 
     if (hooked == 1) //verificar que a socket esta ligada ao server
     {
@@ -329,10 +340,10 @@ int register_callback(char *key, void (*callback_function)(char *))
         else
         {
             char command[5] = "RCL_";
-            int size_key = strlen(key);
+            int size_key = strlen(key) + 1;
             write(send_socket, &command, sizeof(command));
             write(send_socket, &size_key, sizeof(size_key));
-            write(send_socket, key, strlen(key));
+            write(send_socket, key, size_key);
 
             err_rcv = recv(send_socket, &flag, sizeof(int), 0);
             if (err_rcv == -1)

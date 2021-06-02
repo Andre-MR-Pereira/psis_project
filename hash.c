@@ -18,6 +18,8 @@ unsigned hash(char *key, int size)
 hashtable *lookup(hashtable **table, char *key, int size)
 {
     hashtable *aux = NULL;
+    if (table == NULL || key == NULL)
+        return NULL;
     for (aux = table[hash(key, size)]; aux != NULL; aux = aux->next)
     {
         if (strcmp(key, aux->key) == 0)
@@ -31,10 +33,10 @@ hashtable *insert(hashtable **table, char *key, char *value, int size)
 {
     hashtable *aux = NULL;
     unsigned hashval;
-    printf("Entra %s e %s na insert\n", key, value);
+    if (table == NULL || key == NULL || value == NULL)
+        return NULL;
     if ((aux = lookup(table, key, size)) == NULL)
     { /* not found */
-        printf("Cria grupo\n");
         aux = (hashtable *)malloc(sizeof(hashtable));
         if (aux == NULL || (aux->key = strdup(key)) == NULL)
             return NULL;
@@ -55,7 +57,7 @@ hashtable **allocate_table(int size)
     hashtable **table = (hashtable **)malloc(size * sizeof(hashtable *));
     if (table == NULL)
     {
-        perror("Hashtable error");
+        perror("Hashtable allocate error");
         exit(-1);
     }
     return table;
@@ -67,6 +69,9 @@ int delete_hash(hashtable **table, char *key, int size)
     hashtable *aux = NULL, *prev = NULL;
     callbacks *caux = NULL, *cprev = NULL;
     unsigned hashval;
+
+    if (table == NULL || key == NULL)
+        return -1;
     if ((aux = lookup(table, key, size)) == NULL)
     { /* not found */
         return -1;

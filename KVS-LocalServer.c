@@ -147,6 +147,9 @@ int extract_pid(struct sockaddr_un sender_sock_addr)
 hash_list *lookup_group(char *group)
 {
     hash_list *aux;
+    if (group == NULL)
+        return NULL; /* not searched for */
+
     for (aux = groups; aux != NULL; aux = aux->next)
     {
         if (strcmp(group, aux->group) == 0)
@@ -193,7 +196,8 @@ void show_status()
 void create_new_group(char *group)
 {
     hash_list *aux;
-
+    if (group == NULL)
+        return;
     aux = (hash_list *)malloc(sizeof(hash_list));
     if (aux == NULL)
     {
@@ -394,16 +398,26 @@ void *client_interaction(void *args)
             n_bytes = 0;
             while (1)
             {
+                int i = 0;
                 sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                        (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-
+                usleep(100);
                 n_bytes = recvfrom(send_socket, &auth_buffer, sizeof(auth_buffer), MSG_DONTWAIT,
                                    NULL, NULL);
                 printf("1 packet sent CNP\n");
-                sleep(5);
                 if (n_bytes > 0)
                 {
                     break;
+                }
+                if (i > 50)
+                {
+                    printf("Auth server is unreachable");
+                    strcpy(auth_buffer, "-5_");
+                    break;
+                }
+                else
+                {
+                    i++;
                 }
             }
             connection_flag = extract_auth(auth_buffer, field1, field2);
@@ -465,7 +479,7 @@ void *client_interaction(void *args)
                 perror("recieve");
                 exit(-1);
             }
-            value = (char *)malloc((size_field2 + 1) * sizeof(char));
+            value = (char *)malloc((size_field2) * sizeof(char));
             if (value == NULL)
             {
                 perror("Couldn´t allocate space for value");
@@ -491,16 +505,6 @@ void *client_interaction(void *args)
                         {
                             perror("Unlock Put write lock failed");
                         }
-
-                        /*if (pthread_rwlock_rdlock(&group->hash_rwlock) != 0)
-                    {
-                        perror("Lock Put write lock failed");
-                    }
-                    buffer = lookup(group->group_table, field1, HASHSIZE);
-                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
-                    {
-                        perror("Unlock Put write lock failed");
-                    }*/
 
                         callbacks *caux = buffer->head;
                         connection_flag = 100;
@@ -573,10 +577,21 @@ void *client_interaction(void *args)
                     }
                     connection_flag = 1;
                     write(client_fd, &connection_flag, sizeof(connection_flag));
-                    int size_buffer = strlen(buffer->value);
-                    printf("Size %d e '%s'\n", size_buffer, buffer->value);
-                    write(client_fd, &size_buffer, sizeof(size_buffer));
-                    write(client_fd, buffer->value, strlen(buffer->value));
+
+                    if (buffer->value == NULL)
+                    {
+                        int size_buffer = 1;
+                        printf("Size %d e '%s'\n", size_buffer, "");
+                        write(client_fd, &size_buffer, sizeof(size_buffer));
+                        write(client_fd, "", size_buffer);
+                    }
+                    else
+                    {
+                        int size_buffer = strlen(buffer->value) + 1;
+                        printf("Size %d e '%s'\n", size_buffer, buffer->value);
+                        write(client_fd, &size_buffer, sizeof(size_buffer));
+                        write(client_fd, buffer->value, size_buffer);
+                    }
                 }
                 else
                 {
@@ -813,23 +828,35 @@ int UserInput()
             n_bytes = 0;
             while (1)
             {
+                int i = 0;
                 sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                        (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                usleep(100);
                 n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                    NULL, NULL);
                 printf("1 packet sent \n");
-                sleep(2);
                 if (n_bytes > 0)
                 {
                     break;
+                }
+                if (i > 50)
+                {
+                    printf("Auth server is unreachable");
+                    strcpy(auth_rcv_buffer, "-5_");
+                    break;
+                }
+                else
+                {
+                    i++;
                 }
             }
 
             //cleanBuffer(auth_buffer);
 
             //temos de extrair os fields e analisar a connection flag
+            printf("Recebeu %s", auth_rcv_buffer);
             connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
-
+            printf(" e a flag é %d\n", connection_flag);
             //e se for 1 então foi sucesso e tira-se o secret
             if (connection_flag == -9)
             {
@@ -872,16 +899,26 @@ int UserInput()
                 n_bytes = 0;
                 while (1)
                 {
+                    int i = 0;
                     sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                            (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-                    printf("auth_buffer: %s\n", auth_buffer);
+                    usleep(100);
                     n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                        NULL, NULL);
                     printf("1 packet sent\n");
-                    usleep(100);
                     if (n_bytes > 0)
                     {
                         break;
+                    }
+                    if (i > 50)
+                    {
+                        printf("Auth server is unreachable");
+                        strcpy(auth_rcv_buffer, "-3_");
+                        break;
+                    }
+                    else
+                    {
+                        i++;
                     }
                 }
 
@@ -914,16 +951,26 @@ int UserInput()
                         n_bytes = 0;
                         while (1)
                         {
+                            int i = 0;
                             sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-                            printf("auth_buffer: %s\n", auth_buffer);
+                            usleep(100);
                             n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                                NULL, NULL);
                             printf("1 packet sent\n");
-                            usleep(100);
                             if (n_bytes > 0)
                             {
                                 break;
+                            }
+                            if (i > 50)
+                            {
+                                printf("Auth server is unreachable");
+                                strcpy(auth_rcv_buffer, "-3_");
+                                break;
+                            }
+                            else
+                            {
+                                i++;
                             }
                         }
 
@@ -978,16 +1025,26 @@ int UserInput()
                 n_bytes = 0;
                 while (1)
                 {
+                    int i = 0;
                     sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
                            (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-                    printf("auth_buffer: %s\n", auth_buffer);
+                    usleep(100);
                     n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                        NULL, NULL);
                     printf("1 packet sent\n");
-                    usleep(100);
                     if (n_bytes > 0)
                     {
                         break;
+                    }
+                    if (i > 50)
+                    {
+                        printf("Auth server is unreachable");
+                        strcpy(auth_rcv_buffer, "-5_");
+                        break;
+                    }
+                    else
+                    {
+                        i++;
                     }
                 }
 
@@ -1009,7 +1066,7 @@ int UserInput()
                 else
                 {
                     //default
-                    printf("Should not come here - User Input - ASK\n");
+                    printf("Auth server malfunction - ASK\n");
                 }
             }
 
