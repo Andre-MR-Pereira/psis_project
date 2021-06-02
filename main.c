@@ -9,7 +9,7 @@ void callback(char *changed_key)
 
 int main()
 {
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 100; i++)
     {
         establish_connection("grupoteste", "12345");
         put_value("Laranja", "39875983759236589243659237392856723");

@@ -276,7 +276,7 @@ void convert_time()
         }*/
 }
 
-client_list *create_new_client(int client_fd)
+client_list *create_new_client(int client_fd, struct sockaddr_un client)
 {
 
     client_list *new_client = NULL;
@@ -290,7 +290,7 @@ client_list *create_new_client(int client_fd)
     {
         //initialization of the new client struct
         new_client->next = NULL;
-        new_client->pid = -1;
+        new_client->pid = extract_pid(client);
         new_client->fd = client_fd;
         new_client->t_id = -1;
         new_client->connection_close = -1;
@@ -330,16 +330,6 @@ void *client_interaction(void *args)
     struct sockaddr_un client_callback_addr;
     time_t end;
 
-    /*for (int i = 0; i < accepted_connections; i++)
-    {
-        if (client_fd_vector[i] == client_fd)
-        {
-            pos_connects = i;
-            head_connections[pos_connects].pid = extract_pid(client_fd_vector[i]);
-        }
-    }*/
-    //race condition
-
     while (1)
     {
         int err_rcv = recv(client_fd, &command, sizeof(command), 0);
@@ -355,7 +345,7 @@ void *client_interaction(void *args)
             this_client->connection_close = time(&end);
             pthread_exit(NULL);
         }
-        printf("   %d                    RECEBI COMMAND|  %s\n", err_rcv, command);
+        printf("   %d        %d|%d           RECEBI COMMAND|  %s\n", err_rcv, client_fd, this_client->pid, command);
         memset(field1, 0, sizeof(field1));
         memset(field2, 0, sizeof(field2));
 
@@ -404,7 +394,7 @@ void *client_interaction(void *args)
                 usleep(100);
                 n_bytes = recvfrom(send_socket, &auth_buffer, sizeof(auth_buffer), MSG_DONTWAIT,
                                    NULL, NULL);
-                printf("1 packet sent CNP\n");
+                printf("1 packet sent\n");
                 if (n_bytes > 0)
                 {
                     break;
@@ -421,7 +411,6 @@ void *client_interaction(void *args)
                 }
             }
             connection_flag = extract_auth(auth_buffer, field1, field2);
-            printf("Conpare|flag %d\n", connection_flag);
 
             if (connection_flag == 1) //verificar com o auth server
             {
@@ -495,6 +484,11 @@ void *client_interaction(void *args)
                 printf("PUT:Recebi %s e %s\n", field1, value);
                 if (hooked == 1)
                 {
+                    /*int rc = pthread_rwlock_trywrlock(&group->hash_rwlock);
+                    if (rc != 0)
+                    {
+                        printf("##########PUT nao conseguiu a WR LOCK##########\n");
+                    }*/
                     if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
                     {
                         perror("Lock Put write lock failed");
@@ -748,6 +742,10 @@ void *client_interaction(void *args)
                 }
                 else
                 {
+                    if (pthread_rwlock_unlock(&group->hash_rwlock) != 0)
+                    {
+                        perror("Unlock DEL write lock failed");
+                    }
                     error_flag = -2;
                     write(client_fd, &error_flag, sizeof(error_flag));
                 }
@@ -1194,7 +1192,7 @@ int main()
         //client_fd_vector[i] = client_fd;
         //accepted_connections++;
 
-        if ((this_client = create_new_client(client_fd)) != NULL) //==1)
+        if ((this_client = create_new_client(client_fd, client_socket_addr)) != NULL) //==1)
         {
             //(ELEF) take care of possible race condition! criar uma rwlock para os clients
 

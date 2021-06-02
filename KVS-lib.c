@@ -169,23 +169,21 @@ int get_value(char *key, char **value)
             perror("recieve");
             exit(-1);
         }
-
-        err_rcv = recv(send_socket, &size_buffer, sizeof(size_buffer), 0);
-        if (err_rcv == -1)
-        {
-            perror("recieve");
-            exit(-1);
-        }
-        char buffer[size_buffer];
-        err_rcv = recv(send_socket, buffer, size_buffer, 0);
-        if (err_rcv == -1)
-        {
-            perror("recieve");
-            exit(-1);
-        }
-
         if (flag == 1)
         {
+            err_rcv = recv(send_socket, &size_buffer, sizeof(size_buffer), 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
+            char buffer[size_buffer];
+            err_rcv = recv(send_socket, buffer, size_buffer, 0);
+            if (err_rcv == -1)
+            {
+                perror("recieve");
+                exit(-1);
+            }
             printf("Value has been fetched\n");
             *value = (char *)malloc((size_buffer) * sizeof(char));
             strcpy(*value, buffer);
@@ -193,7 +191,7 @@ int get_value(char *key, char **value)
         }
         else if (flag == -2)
         {
-            printf("Key not found\n");
+            printf("GET | Key not found\n");
             return flag;
         }
         else
@@ -244,7 +242,7 @@ int delete_value(char *key)
         }
         else if (flag == -2)
         {
-            printf("Key not found\n");
+            printf("DEL | Key not found\n");
             return flag;
         }
         else if (flag == -3)
@@ -359,7 +357,7 @@ int register_callback(char *key, void (*callback_function)(char *))
             }
             else if (flag == -2)
             {
-                printf("Key not found\n");
+                printf("RCL | Key not found\n");
                 return flag;
             }
             else if (flag == -10)
