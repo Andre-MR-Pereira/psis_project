@@ -168,6 +168,29 @@ void show_groups()
     printf("\n");
 }
 
+void print_group(hash_list* group){
+
+    hashtable** table = group->group_table;
+
+    printf("%s key-values:\n", group->group);
+
+    hashtable *aux = NULL;
+    if (table == NULL )
+        printf("table NULL\n");
+    else
+    {
+        for(int i=0; i<HASHSIZE;i++){
+            for (aux = table[i]; aux != NULL; aux = aux->next)
+            {
+                if(aux!=NULL)
+                    printf("%s - %s\n", aux->key , aux->value);
+            }
+        }
+    }
+    printf("\n");
+
+}
+
 void show_status()
 {
 
@@ -234,12 +257,23 @@ int count_n_elements(hash_list *group)
 {
 
     int counter = 0;
-    hash_list *aux;
+    hash_list* aux;
 
+    //(ELEF) isto está a contar o nº de grupos, alterar!!
     for (aux = groups; aux != NULL; aux = aux->next)
     {
         counter++;
     }
+
+    /*
+    hashtable **aux ;
+
+    for (aux = group->group_table; aux != NULL; aux = aux->next)
+    {
+        counter++;
+    }
+
+    while(aux)*/
 
     return counter;
 }
@@ -383,7 +417,6 @@ void *client_interaction(void *args)
             inet_aton(AUTH_SOCKET_ADDR, &other_sock_addr.sin_addr);
             other_sock_addr.sin_port = htons(3001);
 
-            printf("here\n");
 
             if (pthread_rwlock_rdlock(&groups_rwlock) != 0)
             {
@@ -421,7 +454,7 @@ void *client_interaction(void *args)
                 }
                 else
                 {
-                    error_flag = -5; //(ELEF) confirmar se se quer fechar a app, neste momento a flag -5 não fecha
+                    error_flag = -7; //(ELEF) confirmar se se quer fechar a app, neste momento a flag -5 não fecha
                     //guardar tempo de saida
                     //this_client->connection_close = time(&end);
                 }
@@ -842,6 +875,8 @@ int UserInput(struct sockaddr_in other_sock_addr)
     char option[10] = "\0", input[520] = "\0", group_name[512] = "\n", secret[512] = "\n";
     char field1[512], field2[512], auth_command[5], auth_buffer[1040], auth_rcv_buffer[1040];
     int connection_flag, n_bytes, n_pairs_kv, i = 0; //n_pairs_kv = number of key-value pairs
+    hash_list *aux = groups;
+    hash_list *prev = groups;
 
     printf("\nEnter command (note: group names must be 512 or less characters)\n");
     if (fgets(input, 520, stdin) == NULL)
@@ -920,7 +955,10 @@ int UserInput(struct sockaddr_in other_sock_addr)
                 //Verificar se alguma vez entra aqui
                 printf("Something went wrong creating the group in the authserver\n");
             }
-
+            for(int j=0;j<i;j++){
+                n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer),MSG_DONTWAIT ,
+                                   NULL, NULL);
+            }
             return 0;
         }
         else
@@ -933,9 +971,7 @@ int UserInput(struct sockaddr_in other_sock_addr)
         {
             //verificar se o grupo existe antes de tentar apagar e se a lista não está vazia
             //verificar que o grupo faz parte deste computador, pq se existe aqui, tmb existe no AuthServer (verificação local apenas)
-            hash_list *aux = groups;
-            hash_list *prev = groups;
-
+            
             //read lock nos grupos?? (André?)
             //checks the first element of the list of groups
             if (strcmp(group_name, aux->group) == 0)
@@ -988,6 +1024,11 @@ int UserInput(struct sockaddr_in other_sock_addr)
                         free(aux->group_table);
                         free(aux);     //the same as free(groups);
                         groups = NULL; //the list of groups is empty now
+                    }
+
+                    for(int j=0;j<i;j++){
+                        n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer),MSG_DONTWAIT ,
+                                    NULL, NULL);
                     }
                 }
                 else
@@ -1050,8 +1091,14 @@ int UserInput(struct sockaddr_in other_sock_addr)
                                 prev->next = aux->next;
                                 free(aux->group_table);
                                 free(aux);
+                                for(int j=0;j<i;j++){
+                                    n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer),MSG_DONTWAIT ,
+                                   NULL, NULL);
+                                }
                                 break;
                             }
+
+                            
                         }
                         else
                         {
@@ -1065,7 +1112,6 @@ int UserInput(struct sockaddr_in other_sock_addr)
             }
 
             //unlock ?? -> da read lock (André?)
-            printf("That group doesn't exist\n");
 
             return 0;
         }
@@ -1169,7 +1215,23 @@ int UserInput(struct sockaddr_in other_sock_addr)
         show_status();
         return 0;
     }
+    else if(strcmp(option, "show")==0){
+        printf("Entered show group\n");
+        if (sscanf(input, " %s %s", option, group_name) == 2){
+            aux=lookup_group(group_name);
 
+            if(aux!=NULL)
+            {
+                print_group(aux);
+            }
+            else
+            {
+                printf("Group cannot be printed");
+            }
+
+        }
+        return 0;
+    }
     //if the command is invalid:
     return 1;
 }

@@ -99,7 +99,7 @@ int main()
     struct sockaddr_in sender_sock_addr;
     socklen_t size_sender_addr;
     int sender_sock_addr_size = sizeof(sender_sock_addr);
-    char command[5], field1[512], field2[512], buffer[1040], send_buffer[1040];
+    char command[5], field1[512], field2[512], prev_buffer[1040], buffer[1040], send_buffer[1040];
     int size_field1, size_field2;
     hashtable *group;
     hashtable **vault;
@@ -275,7 +275,7 @@ int main()
             sendto(server_socket, &flag, sizeof(flag), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
         }
-
+        strcpy(prev_buffer,buffer);
         cleanBuffer(buffer);
         cleanBuffer(send_buffer);
     }
