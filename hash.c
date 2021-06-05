@@ -60,6 +60,8 @@ hashtable **allocate_table(int size)
         perror("Hashtable allocate error");
         exit(-1);
     }
+    for(int i=0;i<size;i++)
+        table[i] == NULL;
     return table;
 }
 

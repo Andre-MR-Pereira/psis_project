@@ -22,7 +22,7 @@ pthread_rwlock_t groups_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 typedef struct client_list
 {
     int pid;
-    int fd; 
+    int fd;
     pthread_t t_id;
     struct sockaddr_un client_socket_addr;
     time_t connection_open;
@@ -168,27 +168,28 @@ void show_groups()
     printf("\n");
 }
 
-void print_group(hash_list* group){
+void print_group(hash_list *group)
+{
 
-    hashtable** table = group->group_table;
+    hashtable **table = group->group_table;
 
     printf("%s key-values:\n", group->group);
 
     hashtable *aux = NULL;
-    if (table == NULL )
+    if (table == NULL)
         printf("table NULL\n");
     else
     {
-        for(int i=0; i<HASHSIZE;i++){
+        for (int i = 0; i < HASHSIZE; i++)
+        {
             for (aux = table[i]; aux != NULL; aux = aux->next)
             {
-                if(aux!=NULL)
-                    printf("%s - %s\n", aux->key , aux->value);
+                printf("Entrada %d\n", i);
+                printf("%s - %s\n", aux->key, aux->value);
             }
         }
     }
     printf("\n");
-
 }
 
 void show_status()
@@ -257,7 +258,7 @@ int count_n_elements(hash_list *group)
 {
 
     int counter = 0;
-    hash_list* aux;
+    hash_list *aux;
 
     //(ELEF) isto está a contar o nº de grupos, alterar!!
     for (aux = groups; aux != NULL; aux = aux->next)
@@ -353,7 +354,7 @@ void *client_interaction(void *args)
 {
     client_list *aux;
     hash_list *group;
-   //hash_list *aux_group;
+    //hash_list *aux_group;
     hashtable *buffer;
     //int *client_buffer = (int *)args;
     client_list *this_client = (client_list *)args;
@@ -417,20 +418,19 @@ void *client_interaction(void *args)
             inet_aton(AUTH_SOCKET_ADDR, &other_sock_addr.sin_addr);
             other_sock_addr.sin_port = htons(3001);
 
-
             if (pthread_rwlock_rdlock(&groups_rwlock) != 0)
             {
                 perror("Lock EST write lock failed");
             }
-            group=lookup_group(field1);
+            group = lookup_group(field1);
             if (pthread_rwlock_unlock(&groups_rwlock) != 0)
             {
                 perror("Unlock EST write lock failed");
             }
 
-            if(group==NULL) //if the group doesn't exist here, the app cannot connect to it
+            if (group == NULL) //if the group doesn't exist here, the app cannot connect to it
             {
-                printf("The client cannot access group: %s bc it doesn't belong to this Local\n", field1);
+                printf("The client cannot access group: %s because it doesn't belong to this Local\n", field1);
                 if (hooked == 1)
                 {
                     error_flag = -4;
@@ -443,12 +443,11 @@ void *client_interaction(void *args)
                 }
                 write(client_fd, &error_flag, sizeof(error_flag));
                 pthread_exit(NULL);
-
             }
-            else if(group->remove_flag==1)//the group is marked deleted, so the app cannot connect
+            else if (group->remove_flag == 1) //the group is marked deleted, so the app cannot connect
             {
                 printf("Cannot establish connection. Group is flagged removed\n");
-               if (hooked == 1)
+                if (hooked == 1)
                 {
                     error_flag = -4;
                 }
@@ -471,10 +470,10 @@ void *client_interaction(void *args)
                 while (1)
                 {
                     sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                        (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                           (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
                     usleep(100);
                     n_bytes = recvfrom(send_socket, &auth_buffer, sizeof(auth_buffer), MSG_DONTWAIT,
-                                    NULL, NULL);
+                                       NULL, NULL);
                     printf("%d  |   1 packet sent\n", i);
                     if (n_bytes > 0)
                     {
@@ -495,19 +494,6 @@ void *client_interaction(void *args)
 
                 if (connection_flag == 1) //verificar com o auth server
                 {
-                    /*if (lookup_group(field1) == NULL)
-                    {
-                        create_new_group(field1); //(ELEF) isto não é suposto!!, se o grupo não existe aqui, então a app não pode ter acesso
-                    }*/
-                    /*if (pthread_rwlock_rdlock(&groups_rwlock) != 0)
-                    {
-                        perror("Lock EST write lock failed");
-                    }
-                    group = lookup_group(field1);
-                    if (pthread_rwlock_unlock(&groups_rwlock) != 0)
-                    {
-                        perror("Unlock EST write lock failed");
-                    }*/
                     group->active_users++;
                     show_groups();
                     connection_flag = 1;
@@ -529,8 +515,13 @@ void *client_interaction(void *args)
                     write(client_fd, &error_flag, sizeof(error_flag));
                     pthread_exit(NULL);
                 }
+                for (int j = 0; j < i; j++)
+                {
+                    n_bytes = recvfrom(send_socket, &auth_buffer, sizeof(auth_buffer), MSG_DONTWAIT,
+                                       NULL, NULL);
+                }
             }
- 
+
             break;
         case 1: //put_value
             err_rcv = recv(client_fd, &size_field1, sizeof(size_field1), 0);
@@ -955,8 +946,9 @@ int UserInput(struct sockaddr_in other_sock_addr)
                 //Verificar se alguma vez entra aqui
                 printf("Something went wrong creating the group in the authserver\n");
             }
-            for(int j=0;j<i;j++){
-                n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer),MSG_DONTWAIT ,
+            for (int j = 0; j < i; j++)
+            {
+                n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                    NULL, NULL);
             }
             return 0;
@@ -971,152 +963,155 @@ int UserInput(struct sockaddr_in other_sock_addr)
         {
             //verificar se o grupo existe antes de tentar apagar e se a lista não está vazia
             //verificar que o grupo faz parte deste computador, pq se existe aqui, tmb existe no AuthServer (verificação local apenas)
-            
+
             //read lock nos grupos?? (André?)
             //checks the first element of the list of groups
             if (strcmp(group_name, aux->group) == 0)
             {
-                aux->remove_flag=1;
+                aux->remove_flag = 1;
 
-                if(aux->active_users==0) //if no application is using this group, then it's deleted
+                //enviar msg ao AuthServer a avisar para apagar lá o grupo e segredo
+                strcpy(auth_command, "DEL_");
+                assemble_payload(auth_buffer, auth_command, group_name, NULL);
+
+                n_bytes = 0;
+                i = 0;
+                while (1)
                 {
-                    //enviar msg ao AuthServer a avisar para apagar lá o grupo e segredo
-                    strcpy(auth_command, "DEL_");
-                    assemble_payload(auth_buffer, auth_command, group_name, NULL);
-
-                    n_bytes = 0;
-                    i = 0;
-                    while (1)
+                    sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
+                           (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                    usleep(100);
+                    n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
+                                       NULL, NULL);
+                    printf("%d  |  1 packet sent\n", i);
+                    if (n_bytes > 0)
                     {
-                        sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                            (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-                        usleep(100);
-                        n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
-                                        NULL, NULL);
-                        printf("%d  |  1 packet sent\n", i);
-                        if (n_bytes > 0)
-                        {
-                            break;
-                        }
-                        if (i > 50)
-                        {
-                            printf("Auth server is unreachable\n");
-                            strcpy(auth_rcv_buffer, "-3_");
-                            break;
-                        }
-                        else
-                        {
-                            i++;
-                        }
+                        break;
                     }
-
-                    //temos de extrair os fields e analisar a connection flag
-                    connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
-                    printf("A connection flag foi %d\n", connection_flag);
-
-                    if (connection_flag == -3) //deletion failed in the AuthServer
+                    if (i > 50)
                     {
-                        printf("Deletion in the AuthServer failed\n");
+                        printf("Auth server is unreachable\n");
+                        strcpy(auth_rcv_buffer, "-3_");
+                        break;
                     }
                     else
                     {
-                        //deleting local info of the group:
-                        free(aux->group_table);
-                        free(aux);     //the same as free(groups);
-                        groups = NULL; //the list of groups is empty now
+                        i++;
                     }
+                }
 
-                    for(int j=0;j<i;j++){
-                        n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer),MSG_DONTWAIT ,
-                                    NULL, NULL);
+                //temos de extrair os fields e analisar a connection flag
+                connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
+                printf("A connection flag foi %d\n", connection_flag);
+
+                if (connection_flag == 1) //deletion failed in the AuthServer
+                {
+                    if (aux->active_users == 0) //if no application is using this group, then it's deleted
+                    {
+                        //deleting local info of the group:
+                        groups = aux->next;
+                        delete_table(aux->group_table, HASHSIZE);
+                        free(aux); //the same as free(groups);
                     }
+                    else
+                    {
+                        printf("The group is still in use. It can't be deleted\n");
+                    }
+                }
+                else if (connection_flag == -3) //deletion failed in the AuthServer
+                {
+                    printf("Deletion in the AuthServer failed\n");
                 }
                 else
                 {
-                    printf("The group is still in use. It can't be deleted\n");
-                    return 0;
+                    printf("Deletion unknown flag\n");
                 }
-                
+                for (int j = 0; j < i; j++)
+                {
+                    n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
+                                       NULL, NULL);
+                }
+                return 0;
             }
             else //searches the rest of the list
             {
-                while (aux->next != NULL)
+                prev = aux;
+                aux = aux->next;
+                while (aux != NULL)
                 {
                     if (strcmp(group_name, aux->group) == 0)
                     {
-                        aux->remove_flag=1;
-                        if(aux->active_users==0)//if no application is using this group, then it's deleted
+                        aux->remove_flag = 1;
+
+                        //enviar msg ao AuthServer a avisar para apagar lá o grupo e segredo
+                        strcpy(auth_command, "DEL_");
+                        assemble_payload(auth_buffer, auth_command, group_name, NULL);
+
+                        n_bytes = 0;
+                        i = 0;
+                        while (1)
                         {
-                            //enviar msg ao AuthServer a avisar para apagar lá o grupo e segredo
-                            strcpy(auth_command, "DEL_");
-                            assemble_payload(auth_buffer, auth_command, group_name, NULL);
-
-                            n_bytes = 0;
-                            i = 0;
-                            while (1)
+                            sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
+                                   (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
+                            usleep(100);
+                            n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
+                                               NULL, NULL);
+                            printf("%d  |  1 packet sent\n", i);
+                            if (n_bytes > 0)
                             {
-                                sendto(send_socket, &auth_buffer, sizeof(auth_buffer), 0,
-                                    (struct sockaddr *)&other_sock_addr, sizeof(other_sock_addr));
-                                usleep(100);
-                                n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
-                                                NULL, NULL);
-                                printf("%d  |   1 packet sent\n", i);
-                                if (n_bytes > 0)
-                                {
-                                    break;
-                                }
-                                if (i > 50)
-                                {
-                                    printf("Auth server is unreachable\n");
-                                    strcpy(auth_rcv_buffer, "-3_");
-                                    break;
-                                }
-                                else
-                                {
-                                    i++;
-                                }
+                                break;
                             }
-
-                            //temos de extrair os fields e analisar a connection flag
-                            connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
-                            printf("A connection flag foi %d\n", connection_flag);
-
-                            if (connection_flag == -3) //deletion failed in the AuthServer
+                            if (i > 50)
                             {
-                                printf("Deletion in the AuthServer failed\n");
+                                printf("Auth server is unreachable\n");
+                                strcpy(auth_rcv_buffer, "-3_");
+                                break;
                             }
                             else
                             {
+                                i++;
+                            }
+                        }
+
+                        //temos de extrair os fields e analisar a connection flag
+                        connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
+                        printf("A connection flag foi %d\n", connection_flag);
+
+                        if (connection_flag == 1) //deletion failed in the AuthServer
+                        {
+                            if (aux->active_users == 0) //if no application is using this group, then it's deleted
+                            {
                                 //deleting local info of the group:
                                 prev->next = aux->next;
-                                free(aux->group_table);
-                                free(aux);
-                                for(int j=0;j<i;j++){
-                                    n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer),MSG_DONTWAIT ,
-                                   NULL, NULL);
-                                }
-                                break;
+                                delete_table(aux->group_table, HASHSIZE);
+                                free(aux); //the same as free(groups);
                             }
-
-                            
+                            else
+                            {
+                                printf("The group is still in use. It can't be deleted\n");
+                            }
+                        }
+                        else if (connection_flag == -3) //deletion failed in the AuthServer
+                        {
+                            printf("Deletion in the AuthServer failed\n");
                         }
                         else
                         {
-                            printf("The group is still in use. It can't be deleted\n");
-                            return 0;
+                            printf("Deletion unknown flag\n");
                         }
+                        for (int j = 0; j < i; j++)
+                        {
+                            n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
+                                               NULL, NULL);
+                        }
+                        return 0;
                     }
                     prev = aux;
                     aux = aux->next;
                 }
+                return 1;
             }
-
-            //unlock ?? -> da read lock (André?)
-
-            return 0;
         }
-        else
-            return 1;
     }
     else if (strcmp(option, "group") == 0)
     {
@@ -1215,12 +1210,14 @@ int UserInput(struct sockaddr_in other_sock_addr)
         show_status();
         return 0;
     }
-    else if(strcmp(option, "show")==0){
+    else if (strcmp(option, "show") == 0)
+    {
         printf("Entered show group\n");
-        if (sscanf(input, " %s %s", option, group_name) == 2){
-            aux=lookup_group(group_name);
+        if (sscanf(input, " %s %s", option, group_name) == 2)
+        {
+            aux = lookup_group(group_name);
 
-            if(aux!=NULL)
+            if (aux != NULL)
             {
                 print_group(aux);
             }
@@ -1228,7 +1225,6 @@ int UserInput(struct sockaddr_in other_sock_addr)
             {
                 printf("Group cannot be printed");
             }
-
         }
         return 0;
     }
