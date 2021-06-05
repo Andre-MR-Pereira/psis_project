@@ -60,7 +60,7 @@ hashtable **allocate_table(int size)
         perror("Hashtable allocate error");
         exit(-1);
     }
-    for(int i=0;i<size;i++)
+    for (int i = 0; i < size; i++)
         table[i] == NULL;
     return table;
 }
@@ -172,18 +172,18 @@ void delete_table(hashtable **table, int size)
             aux = table[i];
             while (aux != NULL)
             {
-                prev = aux->next;
-                free(aux->key);
-                free(aux->value);
-                caux = aux->head;
+                prev = aux;
+                aux = aux->next;
+                free(prev->key);
+                free(prev->value);
+                caux = prev->head;
                 while (caux != NULL)
                 {
                     cprev = caux;
                     caux = caux->next;
                     free(cprev);
                 }
-                free(aux);
-                prev = aux;
+                free(prev);
             }
         }
     }
