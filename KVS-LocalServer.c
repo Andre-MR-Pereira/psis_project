@@ -1140,7 +1140,6 @@ int UserInput(struct sockaddr_in other_sock_addr)
                         }
                         for (int j = 0; j < i; j++)
                         {
-                            printf("here j= %d",j);
                             n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                                NULL, NULL);
                         }
