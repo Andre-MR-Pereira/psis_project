@@ -191,6 +191,20 @@ void print_group(hash_list *group)
     printf("\n");
 }
 
+char* convert_time(time_t time)
+{
+    struct tm *tm;
+    char buf[20];
+
+    tm = localtime(&time);
+    if (strftime(buf, sizeof(buf), "%T %D", tm) == 0)
+    {
+        printf("error converting start time\n");
+    }
+
+    return strdup(buf);;
+}
+
 void show_status()
 {
 
@@ -203,14 +217,14 @@ void show_status()
     for (aux = clients; aux != NULL; aux = aux->next)
     {
         printf("client PID : %d | ", aux->pid);
-        printf("establishing time : %ld | ", aux->connection_open);
+        printf("establishing time : %s | ", convert_time(aux->connection_open));
         if (aux->connection_open == -1)
         {
             printf(" still connected\n");
         }
         else
-        {
-            printf("closing time : %ld \n", aux->connection_close);
+        {   
+            printf("closing time : %s \n", convert_time(aux->connection_close));
         }
     }
     printf("\n");
@@ -279,27 +293,6 @@ char *send_with_check_response(char *buffer)
     //se sim -> reenvia
     //else rcvfrom
     //retorna o buffer recebido
-}
-
-void convert_time()
-{
-    //just to keep this saved for now
-    //guardar tempo conexão
-    time_t start;
-    struct tm *tm;
-
-    time(&start);
-    //clients->connection_open = localtime(&start);
-    /*//if conversion is necessary, use this code:
-        tm = localtime(&start);
-        if (strftime(buf, sizeof(buf), "%T %D", tm) == 0)
-        {
-            printf("error converting start time\n");
-        }
-        else
-        {
-            printf("start time: %s %ld\n", buf, strlen(buf));
-        }*/
 }
 
 client_list *create_new_client(int client_fd, struct sockaddr_un client)
