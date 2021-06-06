@@ -960,12 +960,21 @@ int UserInput(struct sockaddr_in other_sock_addr)
         {
             //verificar se o grupo existe antes de tentar apagar e se a lista não está vazia
             //verificar que o grupo faz parte deste computador, pq se existe aqui, tmb existe no AuthServer (verificação local apenas)
+            aux = groups;
+            prev = groups;
 
-            //read lock nos grupos?? (André?)
+            if(aux==NULL)
+            {
+                printf("There are no groups in this Local Server to delete\n");
+                return 0;
+            }
+
+            //read lock nos grupos
             if (pthread_rwlock_rdlock(&groups_rwlock) != 0)
             {
                 perror("Lock DEL read lock failed");
             }
+
             //checks the first element of the list of groups
             if (strcmp(group_name, aux->group) == 0)
             {
@@ -1027,7 +1036,7 @@ int UserInput(struct sockaddr_in other_sock_addr)
                             perror("Unlock DEL write lock failed");
                         }
                         delete_table(aux->group_table, HASHSIZE);
-                        free(aux); //the same as free(groups);
+                        //free(aux); //the same as free(groups);
                     }
                     else
                     {
@@ -1131,15 +1140,22 @@ int UserInput(struct sockaddr_in other_sock_addr)
                         }
                         for (int j = 0; j < i; j++)
                         {
+                            printf("here j= %d",j);
                             n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
                                                NULL, NULL);
                         }
                         return 0;
+                        
                     }
                     prev = aux;
                     aux = aux->next;
                 }
-                return 1;
+                printf("Cannot delete %s, it does not exist\n",group_name);
+                if (pthread_rwlock_unlock(&groups_rwlock) != 0)
+                {
+                    perror("Unlock DEL read lock failed");
+                }
+                return 0;
             }
         }
     }
