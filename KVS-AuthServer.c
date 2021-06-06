@@ -12,6 +12,7 @@
 #define HASHSIZE 10001
 pthread_rwlock_t groups_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
+//extracts information from a message received from a LocalServer
 int extract_command(char *packet, char *field1, char *field2)
 {
     char *command, *f1, *f2;
@@ -49,6 +50,7 @@ int extract_command(char *packet, char *field1, char *field2)
     return -1;
 }
 
+//assembles buffer to send to LocalServer
 void assemble_payload(char *buffer, int flag, char *field1, char *field2)
 {
     char flagstr[2];
@@ -77,6 +79,7 @@ void cleanBuffer(char *buff)
     }
 }
 
+//generates a random secret
 char *generate_secret()
 {
     int randomizer = 0, i;

@@ -293,6 +293,7 @@ int count_n_elements(hash_list *group)
     return counter;
 }
 
+//creates a new client and adds it to the list of clients
 client_list *create_new_client(int client_fd, struct sockaddr_un client)
 {
 
