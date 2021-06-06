@@ -170,7 +170,6 @@ void show_groups()
 
 void print_group(hash_list *group)
 {
-
     hashtable **table = group->group_table;
 
     printf("%s key-values:\n", group->group);
@@ -184,7 +183,7 @@ void print_group(hash_list *group)
         {
             for (aux = table[i]; aux != NULL; aux = aux->next)
             {
-                printf("Entrada %d\n", i);
+                //printf("Entrada %d\n", i);
                 printf("%s - %s\n", aux->key, aux->value);
             }
         }
@@ -256,25 +255,22 @@ void delete_group(char *group)
 
 int count_n_elements(hash_list *group)
 {
-
     int counter = 0;
-    hash_list *aux;
+    hashtable **table = group->group_table;
+    hashtable *aux = NULL;
 
-    //(ELEF) isto está a contar o nº de grupos, alterar!!
-    for (aux = groups; aux != NULL; aux = aux->next)
+    if (table == NULL)
+        return 0;
+    else
     {
-        counter++;
+        for (int i = 0; i < HASHSIZE; i++)
+        {
+            for (aux = table[i]; aux != NULL; aux = aux->next)
+            {
+                counter++;
+            }
+        }
     }
-
-    /*
-    hashtable **aux ;
-
-    for (aux = group->group_table; aux != NULL; aux = aux->next)
-    {
-        counter++;
-    }
-
-    while(aux)*/
 
     return counter;
 }
