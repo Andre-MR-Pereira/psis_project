@@ -942,6 +942,7 @@ int UserInput(struct sockaddr_in other_sock_addr)
                 //Verificar se alguma vez entra aqui
                 printf("Something went wrong creating the group in the authserver\n");
             }
+            //receives the answers of resent messages -> not good if the packages are actually lost
             for (int j = 0; j < i; j++)
             {
                 n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
@@ -961,9 +962,19 @@ int UserInput(struct sockaddr_in other_sock_addr)
             //verificar que o grupo faz parte deste computador, pq se existe aqui, tmb existe no AuthServer (verificação local apenas)
 
             //read lock nos grupos?? (André?)
+            if (pthread_rwlock_rdlock(&groups_rwlock) != 0)
+            {
+                perror("Lock DEL read lock failed");
+            }
             //checks the first element of the list of groups
             if (strcmp(group_name, aux->group) == 0)
             {
+                //the group was found, unlocks the read lock
+                if (pthread_rwlock_unlock(&groups_rwlock) != 0)
+                {
+                    perror("Unlock DEL read lock failed");
+                }
+
                 aux->remove_flag = 1;
 
                 //enviar msg ao AuthServer a avisar para apagar lá o grupo e segredo
@@ -1000,12 +1011,21 @@ int UserInput(struct sockaddr_in other_sock_addr)
                 connection_flag = extract_auth(auth_rcv_buffer, field1, secret);
                 printf("A connection flag foi %d\n", connection_flag);
 
-                if (connection_flag == 1) //deletion failed in the AuthServer
+                if (connection_flag == 1) //deletion was successful in the AuthServer
                 {
                     if (aux->active_users == 0) //if no application is using this group, then it's deleted
                     {
                         //deleting local info of the group:
+                        //since the group is right away the first, it's only necessary to change the first pointer
+                        if (pthread_rwlock_wrlock(&groups_rwlock) != 0)
+                        {
+                            perror("Lock DEL write lock failed");
+                        }
                         groups = aux->next;
+                        if (pthread_rwlock_unlock(&groups_rwlock) != 0)
+                        {
+                            perror("Unlock DEL write lock failed");
+                        }
                         delete_table(aux->group_table, HASHSIZE);
                         free(aux); //the same as free(groups);
                     }
@@ -1037,6 +1057,12 @@ int UserInput(struct sockaddr_in other_sock_addr)
                 {
                     if (strcmp(group_name, aux->group) == 0)
                     {
+                        //the group was found, unlocks the read lock
+                        if (pthread_rwlock_unlock(&groups_rwlock) != 0)
+                        {
+                            perror("Unlock DEL read lock failed");
+                        }
+
                         aux->remove_flag = 1;
 
                         //enviar msg ao AuthServer a avisar para apagar lá o grupo e segredo
@@ -1078,7 +1104,15 @@ int UserInput(struct sockaddr_in other_sock_addr)
                             if (aux->active_users == 0) //if no application is using this group, then it's deleted
                             {
                                 //deleting local info of the group:
+                                if (pthread_rwlock_wrlock(&groups_rwlock) != 0)
+                                {
+                                    perror("Lock DEL write lock failed");
+                                }
                                 prev->next = aux->next;
+                                if (pthread_rwlock_unlock(&groups_rwlock) != 0)
+                                {
+                                    perror("Unlock DEL write lock failed");
+                                }
                                 delete_table(aux->group_table, HASHSIZE);
                                 free(aux); //the same as free(groups);
                             }
@@ -1190,6 +1224,12 @@ int UserInput(struct sockaddr_in other_sock_addr)
                 {
                     //default
                     printf("Auth server malfunction - ASK\n");
+                }
+                //receives the answers of resent messages
+                for (int j = 0; j < i; j++)
+                {
+                    n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
+                                    NULL, NULL);
                 }
             }
 
