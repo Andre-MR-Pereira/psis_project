@@ -248,11 +248,6 @@ void create_new_group(char *group)
     }
 }
 
-void delete_group(char *group)
-{
-    //maybe useless, apagar depois
-}
-
 int count_n_elements(hash_list *group)
 {
     int counter = 0;
@@ -350,9 +345,7 @@ void *client_interaction(void *args)
 {
     client_list *aux;
     hash_list *group;
-    //hash_list *aux_group;
     hashtable *buffer;
-    //int *client_buffer = (int *)args;
     client_list *this_client = (client_list *)args;
     int client_fd = this_client->fd; //*client_buffer;
     int size_field1, size_field2, hooked = 0;
@@ -450,9 +443,8 @@ void *client_interaction(void *args)
                 else
                 {
                     error_flag = -7; //(ELEF) confirmar se se quer fechar a app, neste momento a flag -5 não fecha
-                    //guardar tempo de saida
-                    //this_client->connection_close = time(&end);
                 }
+                this_client->connection_close = time(&end);
                 write(client_fd, &error_flag, sizeof(error_flag));
                 pthread_exit(NULL);
             }
@@ -554,11 +546,6 @@ void *client_interaction(void *args)
                 printf("PUT:Recebi %s e %s\n", field1, value);
                 if (hooked == 1)
                 {
-                    /*int rc = pthread_rwlock_trywrlock(&group->hash_rwlock);
-                    if (rc != 0)
-                    {
-                        printf("##########PUT nao conseguiu a WR LOCK##########\n");
-                    }*/
                     if (pthread_rwlock_wrlock(&group->hash_rwlock) != 0)
                     {
                         perror("Lock Put write lock failed");
@@ -601,6 +588,7 @@ void *client_interaction(void *args)
                     printf("You haven´t established a connection to a group yet.\n");
                     error_flag = -1;
                     group->active_users--;
+                    this_client->connection_close = time(&end);
                     write(client_fd, &error_flag, sizeof(error_flag));
                     //memset(value, 0, sizeof(value));
                     cleanBuffer(auth_buffer);
@@ -672,7 +660,7 @@ void *client_interaction(void *args)
                 printf("You haven´t established a connection to a group yet.\n");
                 error_flag = -1;
                 group->active_users--;
-
+                this_client->connection_close = time(&end);
                 write(client_fd, &error_flag, sizeof(error_flag));
                 free(value);
                 pthread_exit(NULL);
@@ -755,7 +743,7 @@ void *client_interaction(void *args)
                 printf("You haven´t established a connection to a group yet.\n");
                 error_flag = -1;
                 group->active_users--;
-
+                this_client->connection_close = time(&end);
                 write(client_fd, &error_flag, sizeof(error_flag));
                 free(value);
                 pthread_exit(NULL);
@@ -825,6 +813,7 @@ void *client_interaction(void *args)
                 printf("You haven´t established a connection to a group yet.\n");
                 error_flag = -1;
                 group->active_users--;
+                this_client->connection_close = time(&end);
                 write(client_fd, &error_flag, sizeof(error_flag));
                 free(value);
                 pthread_exit(NULL);
@@ -837,9 +826,7 @@ void *client_interaction(void *args)
             group->active_users--;
             connection_flag = 1;
             write(client_fd, &connection_flag, sizeof(connection_flag));
-            //guardar tempo de saida
             this_client->connection_close = time(&end);
-
             pthread_exit(NULL);
             break;
         default:
@@ -847,9 +834,7 @@ void *client_interaction(void *args)
             hooked = 0;
             group->active_users--;
             error_flag = -404;
-            //guardar tempo de saida
             this_client->connection_close = time(&end);
-
             write(client_fd, &error_flag, sizeof(error_flag));
             pthread_exit(NULL);
         }
@@ -963,7 +948,7 @@ int UserInput(struct sockaddr_in other_sock_addr)
             aux = groups;
             prev = groups;
 
-            if(aux==NULL)
+            if (aux == NULL)
             {
                 printf("There are no groups in this Local Server to delete\n");
                 return 0;
@@ -1144,12 +1129,11 @@ int UserInput(struct sockaddr_in other_sock_addr)
                                                NULL, NULL);
                         }
                         return 0;
-                        
                     }
                     prev = aux;
                     aux = aux->next;
                 }
-                printf("Cannot delete %s, it does not exist\n",group_name);
+                printf("Cannot delete %s, it does not exist\n", group_name);
                 if (pthread_rwlock_unlock(&groups_rwlock) != 0)
                 {
                     perror("Unlock DEL read lock failed");
@@ -1244,7 +1228,7 @@ int UserInput(struct sockaddr_in other_sock_addr)
                 for (int j = 0; j < i; j++)
                 {
                     n_bytes = recvfrom(send_socket, &auth_rcv_buffer, sizeof(auth_rcv_buffer), MSG_DONTWAIT,
-                                    NULL, NULL);
+                                       NULL, NULL);
                 }
             }
 

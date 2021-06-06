@@ -79,16 +79,49 @@ void cleanBuffer(char *buff)
 
 char *generate_secret()
 {
-
+    int randomizer = 0, i;
     char *secret = malloc(512 * sizeof(char));
     if (secret == NULL)
     {
         printf("erro a allocar segredo\n");
-        //damos exit??  ou perror
+        exit(-1);
     }
-    //código random de geração do segredo
-    strcpy(secret, "12345");
 
+    //código random de geração do segredo
+    //strcpy(secret, "12345");
+    char numbers[] = "0123456789";
+
+    char letter[] = "abcdefghijklmnoqprstuvwyzx";
+
+    char LETTER[] = "ABCDEFGHIJKLMNOQPRSTUYWVZX";
+
+    char symbols[] = "!@#$^&*?";
+
+    for (i = 0; i < rand() % 512; i++)
+    {
+        randomizer = rand() % 4;
+
+        if (randomizer == 1)
+        {
+            secret[i] = numbers[rand() % 10];
+            printf("%c", secret[i]);
+        }
+        else if (randomizer == 2)
+        {
+            secret[i] = symbols[rand() % 8];
+            printf("%c", secret[i]);
+        }
+        else if (randomizer == 3)
+        {
+            secret[i] = LETTER[rand() % 26];
+            printf("%c", secret[i]);
+        }
+        else
+        {
+            secret[i] = letter[rand() % 26];
+            printf("%c", secret[i]);
+        }
+    }
     return secret;
 }
 
@@ -275,7 +308,7 @@ int main()
             sendto(server_socket, &flag, sizeof(flag), 0,
                    (struct sockaddr *)&sender_sock_addr, sender_sock_addr_size);
         }
-        
+
         cleanBuffer(buffer);
         cleanBuffer(send_buffer);
     }
