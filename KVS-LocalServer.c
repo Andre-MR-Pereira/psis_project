@@ -856,7 +856,6 @@ int UserInput(struct sockaddr_in other_sock_addr)
 
         if (sscanf(input, " %s %s", option, group_name) == 2)
         {
-            printf("Entered create\n");
             //enviar msg ao AuthServer a ver se o grupo já existe (pq não podem haver grupos iguais em computadores diferentes)
             //(basta verificar no AuthServer)
 
